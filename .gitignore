@@ -34,3 +34,9 @@ CLAUDE.md
 
 # Eval run artifacts (generated)
 eval/runs/
+
+# JS / monorepo
+node_modules/
+apps/**/dist/
+.turbo/
+*.tsbuildinfo

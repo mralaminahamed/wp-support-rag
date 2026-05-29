@@ -40,7 +40,7 @@ from app.db.engine import get_session
 from app.db.models import Feedback, Query
 from app.llm.base import LLMProvider
 from app.llm.circuit_breaker import CostCircuitBreaker
-from app.processing.embedder import EmbeddingClient
+from app.processing.embedder import EmbeddingClient, EmbeddingUnavailable
 from app.prompts.registry import get_registry
 from app.rag.generator import StreamEvent, generate, generate_stream
 from app.rag.retriever import RetrievedChunk
@@ -110,14 +110,19 @@ async def query(
         QueryResponse: The answer, citations, sources, and query id.
     """
     start = perf_counter()
-    result = await retrieve(
-        session,
-        redis,
-        embedder,
-        payload.question,
-        plugin_slug=payload.plugin_slug,
-        settings=settings,
-    )
+    try:
+        result = await retrieve(
+            session,
+            redis,
+            embedder,
+            payload.question,
+            plugin_slug=payload.plugin_slug,
+            settings=settings,
+        )
+    except EmbeddingUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
     generation = await generate(
         redis, provider, payload.question, result.chunks, settings=settings, model=model
     )
@@ -202,14 +207,19 @@ async def query_stream(
         StreamingResponse: A ``text/event-stream`` response.
     """
     start = perf_counter()
-    result = await retrieve(
-        session,
-        redis,
-        embedder,
-        payload.question,
-        plugin_slug=payload.plugin_slug,
-        settings=settings,
-    )
+    try:
+        result = await retrieve(
+            session,
+            redis,
+            embedder,
+            payload.question,
+            plugin_slug=payload.plugin_slug,
+            settings=settings,
+        )
+    except EmbeddingUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
 
     async def event_source() -> AsyncIterator[str]:
         final: StreamEvent | None = None

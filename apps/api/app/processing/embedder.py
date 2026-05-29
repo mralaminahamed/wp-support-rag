@@ -26,6 +26,15 @@ from app.processing.chunker import ChunkData
 logger = logging.getLogger(__name__)
 
 
+class EmbeddingUnavailable(Exception):  # noqa: N818 - parallels provider error naming
+    """The embedding backend is not usable for a configuration reason.
+
+    Raised when the embedding provider has no credentials, so it can be
+    distinguished from transient failures and mapped to a clear 503 rather than
+    retried or surfaced as an opaque 500.
+    """
+
+
 @runtime_checkable
 class EmbeddingClient(Protocol):
     """Minimal embedding backend the pipeline depends on.
@@ -57,7 +66,11 @@ class OpenAIEmbeddingClient:
             settings: Application settings supplying model, key, and dimensions.
         """
         key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
-        self._client = AsyncOpenAI(api_key=key)
+        # Build the SDK client only when a key is present; constructing it without
+        # one raises eagerly, which would surface as an opaque 500 during request
+        # dependency resolution. A missing key becomes a clear EmbeddingUnavailable
+        # at call time instead (see embed).
+        self._client = AsyncOpenAI(api_key=key) if key else None
         self._model = settings.embed_model
         self._dimensions = settings.embedding_dimensions
 
@@ -69,7 +82,14 @@ class OpenAIEmbeddingClient:
 
         Returns:
             list[list[float]]: One embedding per text.
+
+        Raises:
+            EmbeddingUnavailable: If no OpenAI API key is configured.
         """
+        if self._client is None:
+            raise EmbeddingUnavailable(
+                "OpenAI embeddings are not configured; set WPRAG_OPENAI_API_KEY"
+            )
         response = await self._client.embeddings.create(
             model=self._model, input=texts, dimensions=self._dimensions
         )
@@ -108,6 +128,8 @@ async def _embed_batch_with_retry(
     for attempt in range(settings.http_max_retries + 1):
         try:
             return await client.embed(batch)
+        except EmbeddingUnavailable:
+            raise  # configuration error: not transient, do not retry
         except Exception as exc:  # noqa: BLE001 - retried, then re-raised below
             last_error = exc
             if attempt >= settings.http_max_retries:

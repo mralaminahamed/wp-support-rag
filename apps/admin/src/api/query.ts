@@ -48,7 +48,18 @@ export async function streamQuery(
     headers,
     body: JSON.stringify(input),
   });
-  if (!res.ok || !res.body) throw new Error(`stream failed: HTTP ${res.status}`);
+  if (!res.ok || !res.body) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const body: unknown = await res.json();
+      if (body && typeof body === "object" && "detail" in body) {
+        detail = String((body as { detail: unknown }).detail);
+      }
+    } catch {
+      // Non-JSON body; keep the status-based message.
+    }
+    throw new Error(detail);
+  }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

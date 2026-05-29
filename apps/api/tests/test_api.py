@@ -22,6 +22,7 @@ from app.ingestion.adapters.base import RawDocument, SourceContext
 from app.ingestion.registry import add_source, create_plugin
 from app.ingestion.tasks import ingest_source
 from app.main import create_app
+from app.processing.embedder import EmbeddingUnavailable
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
@@ -120,6 +121,22 @@ async def test_query_returns_cited_answer_and_feedback_roundtrip(
     )
     assert feedback.status_code == 200
     assert feedback.json()["status"] == "recorded"
+
+
+async def test_query_without_embeddings_returns_503(_ready: None) -> None:
+    """A missing embeddings credential yields a clean 503, not an opaque 500."""
+
+    class _BrokenEmbeddings:
+        async def embed(self, texts: list[str]) -> list[list[float]]:
+            raise EmbeddingUnavailable("OpenAI embeddings are not configured")
+
+    app = create_app()
+    app.dependency_overrides[get_embedding_client] = _BrokenEmbeddings
+    app.dependency_overrides[get_provider] = lambda: FakeProvider()
+    with TestClient(app) as tc:
+        response = tc.post("/api/v1/query", json={"question": "anything?", "plugin_slug": None})
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]
 
 
 async def test_feedback_unknown_query_is_404(_ready: None, client: TestClient) -> None:

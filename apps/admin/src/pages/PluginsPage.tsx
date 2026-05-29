@@ -1,6 +1,6 @@
 // Plugins: list, register, expand sources, ingest per plugin / all. Author: Al Amin Ahamed.
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, ExternalLink, Play, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, GitBranch, Globe, Play, Plus } from "lucide-react";
 import { Fragment, useState } from "react";
 import { ingestAll, ingestPlugin, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
@@ -112,18 +112,23 @@ export function PluginsPage() {
                     <TableCell>
                       <Badge variant="secondary">{p.source_count}</Badge>
                     </TableCell>
-                    <TableCell className="text-[13px]">
+                    <TableCell>
                       {p.github_repo ? (
-                        <RepoLink href={`https://github.com/${p.github_repo}`} label={p.github_repo} />
+                        <RepoLink
+                          href={`https://github.com/${p.github_repo}`}
+                          title={p.github_repo}
+                          icon={GitBranch}
+                        />
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-[13px]">
+                    <TableCell>
                       {p.wporg_slug ? (
                         <RepoLink
                           href={`https://wordpress.org/plugins/${p.wporg_slug}/`}
-                          label={p.wporg_slug}
+                          title={p.wporg_slug}
+                          icon={Globe}
                         />
                       ) : (
                         <span className="text-muted-foreground">—</span>
@@ -153,16 +158,25 @@ export function PluginsPage() {
   );
 }
 
-function RepoLink({ href, label }: { href: string; label: string }) {
+function RepoLink({
+  href,
+  title,
+  icon: Icon,
+}: {
+  href: string;
+  title: string;
+  icon: typeof GitBranch;
+}) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 font-mono text-primary hover:underline"
+      title={title}
+      aria-label={title}
+      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-primary"
     >
-      {label}
-      <ExternalLink className="size-3 opacity-60" />
+      <Icon className="size-4" />
     </a>
   );
 }

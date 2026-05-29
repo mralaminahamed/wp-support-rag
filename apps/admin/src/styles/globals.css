@@ -1,37 +1,84 @@
-/* Admin console styles. Author: Al Amin Ahamed. */
-:root {
-  --bg: #f6f7f9;
-  --fg: #1f2937;
-  --muted: #6b7280;
-  --border: #d9dce1;
-  --accent: #2563eb;
-  --ok: #16a34a;
-  --err: #b91c1c;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--fg);
+/* WP Support RAG — Admin. Tailwind v4 theme. Author: Al Amin Ahamed. */
+@import "tailwindcss";
+
+@theme {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-page: #f4f6fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #f8fafc;
+  --color-border: #e2e8f0;
+
+  --color-fg: #1e2330;
+  --color-muted: #64748b;
+
+  --color-accent: #4f46e5;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #eef0ff;
+
+  --color-ok: #16a34a;
+  --color-ok-soft: #ecfdf5;
+  --color-warn: #d97706;
+  --color-warn-soft: #fffbeb;
+  --color-err: #dc2626;
+  --color-err-soft: #fef2f2;
+
+  --radius-card: 12px;
 }
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); }
-a { color: var(--accent); text-decoration: none; }
 
-.shell { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
-.topbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
-.topbar h1 { font-size: 20px; margin: 0 auto 0 0; }
-nav.tabs { display: flex; gap: 4px; margin: 16px 0; }
-nav.tabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); }
-nav.tabs a.active { background: #e8edff; color: var(--accent); }
+/* Class-based dark mode for Tailwind v4 dark: utilities. */
+@custom-variant dark (&:where(.dark, .dark *));
 
-input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
-input#token { width: 280px; } input#api { width: 220px; }
-button { padding: 8px 12px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; cursor: pointer; }
-button.secondary { background: #eef0f3; color: #374151; }
-button:disabled { opacity: 0.6; cursor: default; }
+.dark {
+  --color-page: #0d1117;
+  --color-surface: #161b22;
+  --color-surface-2: #1c232d;
+  --color-border: #2a313c;
+  --color-fg: #e6edf3;
+  --color-muted: #9aa4b2;
+  --color-accent: #7c83ff;
+  --color-accent-fg: #0d1117;
+  --color-accent-soft: #1d2440;
+  --color-ok-soft: rgba(22, 163, 74, 0.14);
+  --color-warn-soft: rgba(217, 119, 6, 0.14);
+  --color-err-soft: rgba(220, 38, 38, 0.14);
+}
 
-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
-th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eef0f3; }
-.muted { color: var(--muted); font-size: 13px; }
-.err { color: var(--err); font-size: 13px; }
-.cards { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
-.card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; min-width: 150px; background: #fff; }
-.card span { color: var(--muted); font-size: 13px; }
-.card b { display: block; font-size: 22px; margin-top: 4px; }
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background-color: var(--color-page);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes shimmer {
+  100% {
+    background-position: -200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 25%,
+    var(--color-border) 50%,
+    var(--color-surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.3s ease infinite;
+}

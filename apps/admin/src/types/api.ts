@@ -1,5 +1,24 @@
-// API response types mirroring apps/api schemas (apps.api.api.schemas).
-// Author: Al Amin Ahamed.
+// API types mirroring apps/api schemas (app.api.schemas). Author: Al Amin Ahamed.
+
+export const SOURCE_TYPES = [
+  "github_readme",
+  "github_changelog",
+  "github_docs",
+  "github_issues",
+  "wporg_faq",
+  "wporg_changelog",
+  "wporg_support",
+] as const;
+
+export type SourceType = (typeof SOURCE_TYPES)[number];
+
+export interface Health {
+  status: string;
+  service: string;
+  environment: string;
+  database: string;
+  redis: string;
+}
 
 export interface PluginSummary {
   slug: string;
@@ -14,6 +33,14 @@ export interface SourceSummary {
   source_type: string;
   enabled: boolean;
   last_ingested_at: string | null;
+}
+
+export interface PluginRegistration {
+  slug: string;
+  name: string;
+  wporg_slug?: string | null;
+  github_repo?: string | null;
+  source_types: string[];
 }
 
 export interface IngestTriggerResponse {
@@ -35,4 +62,22 @@ export interface Metrics {
   degraded_rate: number;
   mean_cost_usd: number;
   p95_latency_ms: number;
+}
+
+export interface SourceRef {
+  url: string;
+  heading_path: string | null;
+  cited: boolean;
+}
+
+export interface QueryResponse {
+  query_id: string;
+  answer: string;
+  citations: string[];
+  sources: SourceRef[];
+  cached: boolean;
+  degraded: boolean;
+  declined: boolean;
+  plugin_slug: string | null;
+  latency_ms: number;
 }

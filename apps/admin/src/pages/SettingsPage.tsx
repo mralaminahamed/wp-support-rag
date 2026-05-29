@@ -27,7 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar } from "@/components/ui/avatar";
 import { getApiBase, getToken, setApiBase, setToken } from "@/lib/config";
+import { getProfile, setProfile } from "@/lib/profile";
 import { extractErrorMessage } from "@/lib/queryClient";
 
 export function SettingsPage() {
@@ -37,10 +39,54 @@ export function SettingsPage() {
         title="Settings"
         description="API connection, generation provider, and embeddings."
       />
+      <ProfileCard />
       <ConnectionCard />
       <GenerationCard />
       <EmbeddingCard />
     </div>
+  );
+}
+
+function ProfileCard() {
+  const toast = useToast();
+  const initial = getProfile();
+  const [name, setName] = useState(initial.name);
+  const [email, setEmail] = useState(initial.email);
+
+  function save() {
+    setProfile({ name: name.trim(), email: email.trim() });
+    toast.ok("Profile saved.");
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Profile</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 flex items-center gap-3">
+          <Avatar name={name || "?"} email={email} size={48} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{name || "Unnamed"}</p>
+            <p className="truncate text-xs text-muted-foreground">{email || "no email"}</p>
+          </div>
+        </div>
+        <Field label="Full name">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Al Amin Ahamed" />
+        </Field>
+        <Field label="Email" hint="Used for your Gravatar avatar. Stored in this browser only.">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+          />
+        </Field>
+        <Button aria-label="Save profile" onClick={save}>
+          Save
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -134,7 +180,9 @@ function ConnectionCard() {
           <Input type="password" value={token} onChange={(e) => setTok(e.target.value)} />
         </Field>
         <div className="flex gap-2">
-          <Button onClick={save}>Save</Button>
+          <Button aria-label="Save connection" onClick={save}>
+            Save
+          </Button>
           <Button variant="secondary" onClick={test} disabled={testing}>
             {testing ? "Testing…" : "Test connection"}
           </Button>
@@ -247,7 +295,11 @@ function GenerationCard() {
             )}
 
             <div className="flex gap-2">
-              <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+              <Button
+                aria-label="Save generation"
+                onClick={() => save.mutate()}
+                disabled={!dirty || save.isPending}
+              >
                 {save.isPending ? "Saving…" : "Save"}
               </Button>
               <Button
@@ -373,7 +425,11 @@ function EmbeddingCard() {
             )}
 
             <div className="flex gap-2">
-              <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+              <Button
+                aria-label="Save embedding"
+                onClick={() => save.mutate()}
+                disabled={!dirty || save.isPending}
+              >
                 {save.isPending ? "Saving…" : "Save"}
               </Button>
               <Button

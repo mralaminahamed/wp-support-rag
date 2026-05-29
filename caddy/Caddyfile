@@ -1,0 +1,10 @@
+# Caddy reverse proxy with automatic TLS (NFR-PT-1).
+# Author: Al Amin Ahamed.
+#
+# $DOMAIN is provided by docker-compose.prod.yml; Caddy provisions and renews a
+# Let's Encrypt certificate for it automatically and proxies to the API.
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8000
+}

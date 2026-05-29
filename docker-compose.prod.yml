@@ -1,0 +1,110 @@
+# WP Plugin Support Desk RAG — production stack (NFR-PT-1).
+# Author: Al Amin Ahamed.
+#
+#   DOMAIN=support.example.com WPRAG_OPENAI_API_KEY=... WPRAG_ANTHROPIC_API_KEY=... \
+#   WPRAG_ADMIN_BEARER_TOKEN=... docker compose -f docker-compose.prod.yml up -d
+#
+# Caddy terminates TLS automatically for $DOMAIN and reverse-proxies the API.
+# All secrets come from the environment; none are baked into the image.
+
+x-app-env: &app-env
+  WPRAG_ENVIRONMENT: production
+  WPRAG_DATABASE_DSN: postgresql+asyncpg://wprag:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/wprag
+  WPRAG_REDIS_DSN: redis://redis:6379/0
+  WPRAG_DEFAULT_PROVIDER: ${WPRAG_DEFAULT_PROVIDER:-anthropic}
+  WPRAG_ANTHROPIC_API_KEY: ${WPRAG_ANTHROPIC_API_KEY:-}
+  WPRAG_OPENAI_API_KEY: ${WPRAG_OPENAI_API_KEY:-}
+  WPRAG_ADMIN_BEARER_TOKEN: ${WPRAG_ADMIN_BEARER_TOKEN:?set WPRAG_ADMIN_BEARER_TOKEN}
+  WPRAG_CORS_ORIGINS: ${WPRAG_CORS_ORIGINS:-["*"]}
+  WPRAG_LOG_LEVEL: ${WPRAG_LOG_LEVEL:-INFO}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: wprag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: wprag
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wprag -d wprag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    command: ["celery", "-A", "app.ingestion.tasks:celery_app", "worker", "-l", "info"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    command:
+      ["celery", "-A", "app.ingestion.tasks:celery_app", "beat", "-l", "info",
+       "--schedule", "/tmp/celerybeat-schedule"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:

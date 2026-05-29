@@ -50,3 +50,25 @@ jobs:
         run: pnpm run lint
       - name: Build
         run: pnpm run build
+
+  e2e:
+    name: e2e (admin, Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # Browser download + system deps are unavailable under local `act`.
+      - name: Install Chromium
+        if: ${{ !env.ACT }}
+        run: pnpm --filter @wp-support-rag/admin exec playwright install --with-deps chromium
+      - name: Run e2e (API mocked via page.route)
+        if: ${{ !env.ACT }}
+        run: pnpm --filter @wp-support-rag/admin run e2e

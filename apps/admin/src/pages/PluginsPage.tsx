@@ -43,7 +43,7 @@ export function PluginsPage() {
             <Play className="h-4 w-4" /> Ingest all
           </Button>
           <Button onClick={() => setRegistering(true)}>
-            <Plus className="h-4 w-4" /> Register
+            <Plus className="h-4 w-4" /> Register plugin
           </Button>
         </div>
       </div>

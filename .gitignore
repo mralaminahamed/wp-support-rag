@@ -40,3 +40,8 @@ node_modules/
 apps/**/dist/
 .turbo/
 *.tsbuildinfo
+
+# Playwright
+apps/**/test-results/
+apps/**/playwright-report/
+apps/**/.playwright/

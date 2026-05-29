@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
 import { Field, Select, Textarea } from "@/components/ui/field";
+import { PageHeader } from "@/components/ui/page-header";
 import { extractErrorMessage } from "@/lib/queryClient";
 import type { SourceRef } from "@/types/api";
 
@@ -71,7 +72,7 @@ export function PlaygroundPage() {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-semibold">Playground</h2>
+      <PageHeader title="Playground" />
 
       <Card className="mb-5">
         <CardBody>
@@ -106,7 +107,7 @@ export function PlaygroundPage() {
               Stream
             </label>
             <Button className="mb-3.5" onClick={run} disabled={busy}>
-              {busy ? <Spinner className="border-accent-fg/40 border-t-accent-fg" /> : <Send className="h-4 w-4" />}
+              {busy ? <Spinner /> : <Send className="h-4 w-4" />}
               Ask
             </Button>
           </div>

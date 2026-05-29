@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHead } from "@/components/ui/card";
 import { ErrorState, Skeleton } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { extractErrorMessage } from "@/lib/queryClient";
 import { pct } from "@/lib/utils";
 
@@ -15,19 +16,21 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Dashboard</h2>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            void health.refetch();
-            void metrics.refetch();
-          }}
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
-        </Button>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              void health.refetch();
+              void metrics.refetch();
+            }}
+          >
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </Button>
+        }
+      />
 
       <Card className="mb-5">
         <CardHead title="Service health" />

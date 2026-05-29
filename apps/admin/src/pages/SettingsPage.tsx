@@ -6,6 +6,7 @@ import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHead } from "@/components/ui/card";
 import { Field, Input } from "@/components/ui/field";
+import { PageHeader } from "@/components/ui/page-header";
 import { getApiBase, getToken, setApiBase, setToken } from "@/lib/config";
 
 export function SettingsPage() {
@@ -39,7 +40,7 @@ export function SettingsPage() {
 
   return (
     <div>
-      <h2 className="mb-5 text-xl font-semibold">Settings</h2>
+      <PageHeader title="Settings" />
       <Card className="max-w-xl">
         <CardHead title="Connection" />
         <CardBody>

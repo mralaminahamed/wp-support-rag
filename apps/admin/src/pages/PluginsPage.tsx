@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { PageHeader } from "@/components/ui/page-header";
 import { RegisterPluginModal } from "@/features/RegisterPluginModal";
 import { SourcesRow } from "@/features/SourcesRow";
 import { extractErrorMessage } from "@/lib/queryClient";
@@ -32,21 +33,23 @@ export function PluginsPage() {
 
   return (
     <div>
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Plugins</h2>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => ingestEvery.mutate()}
-            disabled={ingestEvery.isPending}
-          >
-            <Play className="h-4 w-4" /> Ingest all
-          </Button>
-          <Button onClick={() => setRegistering(true)}>
-            <Plus className="h-4 w-4" /> Register plugin
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Plugins"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => ingestEvery.mutate()}
+              disabled={ingestEvery.isPending}
+            >
+              <Play className="h-4 w-4" /> Ingest all
+            </Button>
+            <Button onClick={() => setRegistering(true)}>
+              <Plus className="h-4 w-4" /> Register plugin
+            </Button>
+          </>
+        }
+      />
 
       <Card>
         {plugins.isLoading ? (

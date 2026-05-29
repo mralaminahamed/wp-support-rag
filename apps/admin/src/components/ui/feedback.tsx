@@ -7,10 +7,9 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent-soft border-t-accent",
+        "inline-block h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current",
         className,
       )}
-      style={{ animationName: "spin" }}
       aria-label="loading"
     />
   );

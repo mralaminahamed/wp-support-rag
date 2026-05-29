@@ -57,7 +57,7 @@ jobs:
       WPRAG_DATABASE_DSN: postgresql+asyncpg://wprag:wprag@localhost:5432/wprag
       WPRAG_REDIS_DSN: redis://localhost:6379/0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:

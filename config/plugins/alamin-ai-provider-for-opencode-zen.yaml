@@ -1,0 +1,13 @@
+# Declarative plugin registration (FR-PM-5).
+# Author: Al Amin Ahamed.
+
+slug: alamin-ai-provider-for-opencode-zen
+name: AI Provider for OpenCode Zen
+wporg_slug: alamin-ai-provider-for-opencode-zen
+
+sources:
+  - source_type: wporg_faq
+  - source_type: wporg_changelog
+  - source_type: wporg_support
+    config:
+      max_threads: 10

@@ -10,6 +10,18 @@ from app.ingestion.registry import parse_plugin_config
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_all_committed_plugin_configs_parse() -> None:
+    """Every config under config/plugins/ parses into a valid spec (FR-PM-5)."""
+    configs = sorted((REPO_ROOT / "config/plugins").glob("*.yaml"))
+    assert len(configs) >= 2
+    for path in configs:
+        spec = parse_plugin_config(path)
+        assert spec.slug == path.stem
+        assert spec.sources
+        if spec.github_repo:
+            assert "/" in spec.github_repo
+
+
 def test_parses_real_yaml_config() -> None:
     """The committed Swift Menu Duplicator YAML config parses fully."""
     spec = parse_plugin_config(REPO_ROOT / "config/plugins/swift-menu-duplicator.yaml")

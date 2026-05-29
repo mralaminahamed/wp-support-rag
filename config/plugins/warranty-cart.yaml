@@ -1,0 +1,13 @@
+# Declarative plugin registration (FR-PM-5).
+# Author: Al Amin Ahamed.
+
+slug: warranty-cart
+name: Warranty Cart
+wporg_slug: warranty-cart
+
+sources:
+  - source_type: wporg_faq
+  - source_type: wporg_changelog
+  - source_type: wporg_support
+    config:
+      max_threads: 10

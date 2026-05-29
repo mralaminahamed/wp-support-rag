@@ -1,0 +1,24 @@
+# Declarative plugin registration (FR-PM-5).
+# Author: Al Amin Ahamed.
+
+slug: easycommerce-fakerpress
+name: EasyCommerce FakerPress
+wporg_slug: easycommerce-fakerpress
+github_repo: mralaminahamed/easycommerce-fakerpress
+
+sources:
+  - source_type: github_readme
+  - source_type: github_changelog
+  - source_type: github_docs
+    config:
+      path: docs
+  - source_type: github_issues
+    config:
+      state: closed
+      labels: [question, support]
+      per_page: 50
+  - source_type: wporg_faq
+  - source_type: wporg_changelog
+  - source_type: wporg_support
+    config:
+      max_threads: 10

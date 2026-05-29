@@ -1,0 +1,31 @@
+# Author: Al Amin Ahamed.
+name: Feature request
+description: Propose an enhancement to the RAG service or admin tooling.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What gap or pain does this address? Link a spec id if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This stays within the grounded, first-party-docs corpus (no external knowledge sources)
+        - label: This keeps the multi-provider abstraction (no single-provider hard-wiring)

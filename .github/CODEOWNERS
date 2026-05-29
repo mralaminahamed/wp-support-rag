@@ -1,0 +1,8 @@
+# Default owner for everything in this repo.
+* @mralaminahamed
+
+# Specs are authoritative — review changes carefully.
+/docs/ @mralaminahamed
+
+# Quality gates and deploy config.
+/.github/ @mralaminahamed

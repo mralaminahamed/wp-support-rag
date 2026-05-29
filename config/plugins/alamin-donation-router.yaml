@@ -1,11 +1,24 @@
 # Declarative plugin registration (FR-PM-5).
 # Author: Al Amin Ahamed.
+#
+# Private GitHub repo: ingestion needs WPRAG_GITHUB_TOKEN with read access.
 
 slug: alamin-donation-router
 name: Business Accounts Router for GiveWP with PayPal Donations
 wporg_slug: alamin-donation-router
+github_repo: mralaminahamed/alamin-donation-router
 
 sources:
+  - source_type: github_readme
+  - source_type: github_changelog
+  - source_type: github_docs
+    config:
+      path: docs
+  - source_type: github_issues
+    config:
+      state: closed
+      labels: [question, support]
+      per_page: 50
   - source_type: wporg_faq
   - source_type: wporg_changelog
   - source_type: wporg_support

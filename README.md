@@ -1,61 +1,94 @@
-# WP Plugin Support Desk RAG — Documentation Set
+# WP Plugin Support Desk RAG
 
 **Author:** Al Amin Ahamed ([@mralaminahamed](https://github.com/mralaminahamed))
-**Version:** 1.0 · May 2026
 
-A grounded RAG service that answers WordPress plugin support questions from the author's own
-documentation corpus (GitHub + WordPress.org), built to deflect repetitive support tickets.
+A self-hosted Retrieval-Augmented Generation service that answers WordPress
+plugin support questions from a grounded corpus of the author's own documentation
+(GitHub READMEs/CHANGELOGs/docs/issues and WordPress.org FAQ/changelog/support
+threads). It deflects repetitive support tickets with instant, **cited** answers,
+and fails open to retrieved links when the LLM is unavailable.
 
-## Contents
-
-| File | Purpose |
-|---|---|
-| `01-SRS.md` | Software Requirements Specification — functional/non-functional requirements, acceptance criteria, golden-dataset spec. |
-| `02-Architecture.md` | Architecture & design — components, request lifecycle, full data model (DDL), prompt registry, ADRs. |
-| `03-Implementation-Plan.md` | Nine-phase build plan with definitions of done, the one-week schedule, and a risk register. |
-| `04-Claude-Code-Prompts.md` | Ready-to-paste Claude Code prompts, one per phase, plus a final acceptance pass. |
-| `claude-md/` | The `CLAUDE.md` context files — drop these into the repository as-is. |
-
-## How the pieces fit
+## How it works
 
 ```
-01-SRS  ──defines──▶  02-Architecture  ──realised by──▶  03-Implementation-Plan
-                                                                  │
-                                                          drives each phase
-                                                                  ▼
-                                                      04-Claude-Code-Prompts
-                                                                  │
-                                              executed under the conventions in
-                                                                  ▼
-                                                          claude-md/*  (loaded by Claude Code)
+widget → POST /api/v1/query
+  → route (plugin slug or centroid routing)
+  → hybrid retrieve (HNSW cosine + Postgres FTS, merged by RRF)
+  → generate (cache → cost breaker → provider → citation validation → cache)
+  → cited answer  (or degraded links / decline)
 ```
 
-## Placing the CLAUDE.md files
+- **Frameworkless** pgvector RAG — no LangChain/LlamaIndex in the hot path.
+- **Embeddings**: `text-embedding-3-large` stored as `halfvec(3072)` with an HNSW
+  index (config fallback to `vector(1536)`).
+- **Hybrid retrieval**: vector + lexical fused with Reciprocal Rank Fusion.
+- **Multi-provider generation**: Claude, OpenAI, or Ollama, interchangeable by config.
+- **Grounded & cited**: only source URLs of supplied chunks may be cited.
+- **Resilient**: fail-open on provider outage; per-request cost circuit breaker.
 
-Copy `claude-md/` into the repository root, preserving the tree. Claude Code loads the root file
-globally and the nested files when working in their directories:
+See `docs/` for the full SRS, architecture, implementation plan, and ADRs.
 
-```
-wp-support-rag/
-├── CLAUDE.md                      ← claude-md/CLAUDE.md
-├── docs/
-│   ├── 01-SRS.md
-│   ├── 02-Architecture.md
-│   ├── 03-Implementation-Plan.md
-│   └── 04-Claude-Code-Prompts.md
-├── app/
-│   ├── CLAUDE.md                  ← claude-md/app/CLAUDE.md
-│   ├── ingestion/CLAUDE.md        ← claude-md/app/ingestion/CLAUDE.md
-│   └── rag/CLAUDE.md              ← claude-md/app/rag/CLAUDE.md
-└── tests/
-    └── CLAUDE.md                  ← claude-md/tests/CLAUDE.md
+## Quickstart (local)
+
+```bash
+uv sync                                   # install dependencies
+docker compose up -d                      # postgres+pgvector, redis, app, worker, beat
+uv run alembic upgrade head               # create the schema
+curl localhost:8000/health                # {"status":"ok",...}
 ```
 
-Keep `docs/` in the working tree so the phase prompts can reference requirement and component ids
-(e.g. FR-GN-6, ADR-002) directly.
+Set provider keys (for real generation) in `.env` (see `.env.example`):
 
-## Build order
+```
+WPRAG_OPENAI_API_KEY=...        # embeddings + OpenAI provider
+WPRAG_ANTHROPIC_API_KEY=...     # Claude provider
+WPRAG_ADMIN_BEARER_TOKEN=...    # admin endpoints
+```
 
-Run the phases in `04-Claude-Code-Prompts.md` strictly in sequence (Phase 0 → 8). Do not start a phase
-until the previous phase's definition of done in `03-Implementation-Plan.md` is met. Gates
-(`ruff`, `mypy --strict`, `pytest`, and the eval harness) must be green at every phase boundary.
+## Embed the widget
+
+One script tag on any external page (no build step):
+
+```html
+<script src="https://your-host/widget.js"
+        data-plugin-slug="swift-menu-duplicator"
+        data-api-base="https://your-api-host"></script>
+```
+
+It posts to `/api/v1/query`, renders the cited answer, and offers a
+helpful/not-helpful control posting to `/api/v1/feedback`. See `widget/index.html`
+for a working external-page demo.
+
+## API
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/health` | — | Liveness + DB/Redis probes |
+| POST | `/api/v1/query` | per-IP rate limit | Ask a question; returns a cited answer + `query_id` |
+| POST | `/api/v1/feedback` | per-IP rate limit | Bind `helpful`/`not_helpful` to a `query_id` |
+| POST | `/api/v1/admin/plugins` | bearer | Register a plugin and its sources |
+| POST | `/api/v1/admin/ingest/{slug}` | bearer | Trigger ingestion (one Celery task per source) |
+| GET | `/api/v1/admin/metrics` | bearer | Deflection, helpful, cache-hit, degraded rates, mean cost, p95 latency |
+
+## Production deployment
+
+```bash
+DOMAIN=support.example.com POSTGRES_PASSWORD=… WPRAG_ADMIN_BEARER_TOKEN=… \
+WPRAG_OPENAI_API_KEY=… WPRAG_ANTHROPIC_API_KEY=… \
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Caddy terminates TLS automatically for `$DOMAIN` and reverse-proxies the API.
+All secrets are environment-only. See `RUNBOOK.md` for day-two operations.
+
+## Quality gates
+
+```bash
+ruff check . && ruff format --check .     # lint + format
+mypy --strict app eval                    # types
+pytest                                    # tests (external calls mocked/VCR-replayed)
+python -m eval.harness                    # offline eval gate (recall >= 0.85, citation >= 0.95)
+```
+
+CI runs lint/typecheck/test on every push; the eval gate runs on changes under
+`app/prompts/`, `app/rag/`, or `eval/dataset/` and blocks regressions.

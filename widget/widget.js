@@ -81,18 +81,65 @@ button[disabled]{opacity:.6;cursor:default}\
       this.askButton.disabled = true;
       this.out.innerHTML = "<div class='muted'>Searching the docs…</div>";
       try {
-        var res = await fetch(this.apiBase + "/api/v1/query", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: question, plugin_slug: this.pluginSlug }),
-        });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        this.render(await res.json());
+        var streamed = await this.streamAsk(question);
+        if (!streamed) await this.fetchAsk(question);
       } catch (err) {
         this.out.innerHTML = "<div class='notice'>Could not reach the support service. Please try again.</div>";
       } finally {
         this.askButton.disabled = false;
       }
+    }
+
+    async fetchAsk(question) {
+      var res = await fetch(this.apiBase + "/api/v1/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: question, plugin_slug: this.pluginSlug }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      this.render(await res.json());
+    }
+
+    // Stream tokens via SSE; returns false to signal fallback to fetchAsk.
+    async streamAsk(question) {
+      var res;
+      try {
+        res = await fetch(this.apiBase + "/api/v1/query/stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: question, plugin_slug: this.pluginSlug }),
+        });
+      } catch (e) {
+        return false;
+      }
+      if (!res.ok || !res.body) return false;
+
+      this.out.innerHTML = "";
+      var answer = el("<div class='answer'></div>");
+      this.out.appendChild(answer);
+
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = "";
+      var live = "";
+      while (true) {
+        var step = await reader.read();
+        if (step.done) break;
+        buffer += decoder.decode(step.value, { stream: true });
+        var frames = buffer.split("\n\n");
+        buffer = frames.pop();
+        for (var i = 0; i < frames.length; i++) {
+          var parsed = parseSSE(frames[i]);
+          if (!parsed) continue;
+          if (parsed.event === "token") {
+            live += parsed.data.text || "";
+            answer.textContent = live; // provisional render
+          } else if (parsed.event === "done") {
+            this.render(parsed.data); // replace with citation-validated answer
+          }
+        }
+      }
+      return true;
     }
 
     render(data) {
@@ -143,6 +190,21 @@ button[disabled]{opacity:.6;cursor:default}\
       } catch (err) {
         container.innerHTML = "<span>Could not record feedback.</span>";
       }
+    }
+  }
+
+  function parseSSE(frame) {
+    var event = "message";
+    var data = "";
+    frame.split("\n").forEach(function (line) {
+      if (line.indexOf("event:") === 0) event = line.slice(6).trim();
+      else if (line.indexOf("data:") === 0) data += line.slice(5).trim();
+    });
+    if (!data) return null;
+    try {
+      return { event: event, data: JSON.parse(data) };
+    } catch (e) {
+      return null;
     }
   }
 

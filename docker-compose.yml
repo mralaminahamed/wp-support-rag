@@ -11,6 +11,9 @@ x-app-env: &app-env
   WPRAG_DATABASE_DSN: postgresql+asyncpg://wprag:wprag@postgres:5432/wprag
   WPRAG_REDIS_DSN: redis://redis:6379/0
   WPRAG_LOG_LEVEL: INFO
+  # Dev-only admin token so /api/v1/admin/* is usable out of the box; override
+  # via the WPRAG_ADMIN_BEARER_TOKEN env var. Never use this value in production.
+  WPRAG_ADMIN_BEARER_TOKEN: ${WPRAG_ADMIN_BEARER_TOKEN:-dev-admin-token}
 
 services:
   postgres:

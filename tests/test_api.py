@@ -26,7 +26,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
-from tests.conftest import BoWEmbeddingClient, FakeProvider, database_available
+from tests.conftest import (
+    BoWEmbeddingClient,
+    FakeProvider,
+    FakeStreamingProvider,
+    database_available,
+)
 
 SLUG = "swift-menu-duplicator"
 REAL_URL = "https://wordpress.org/plugins/swift-menu-duplicator/#faq"
@@ -133,6 +138,53 @@ async def test_rate_limit_enforced(_ready: None, monkeypatch: pytest.MonkeyPatch
         payload = {"question": "hi there", "plugin_slug": SLUG}
         codes = [tc.post("/api/v1/query", json=payload).status_code for _ in range(4)]
     assert 429 in codes
+
+
+async def test_query_stream_emits_tokens_and_cited_done(_ready: None) -> None:
+    """The SSE endpoint streams tokens then a done event with citations (FR-DL-3)."""
+    app = create_app()
+    app.dependency_overrides[get_embedding_client] = lambda: BoWEmbeddingClient(
+        get_settings().embedding_dimensions
+    )
+    app.dependency_overrides[get_provider] = lambda: FakeStreamingProvider(
+        text=f"Theme location assignments are not copied. See {REAL_URL}."
+    )
+    with TestClient(app) as tc:
+        response = tc.post(
+            "/api/v1/query/stream",
+            json={"question": "Does it copy theme location assignments?", "plugin_slug": SLUG},
+        )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+
+    events = []
+    for frame in response.text.split("\n\n"):
+        if not frame.strip():
+            continue
+        name = next(ln[7:] for ln in frame.splitlines() if ln.startswith("event: "))
+        data = next(ln[6:] for ln in frame.splitlines() if ln.startswith("data: "))
+        events.append((name, __import__("json").loads(data)))
+
+    assert any(name == "token" for name, _ in events)
+    done = next(payload for name, payload in events if name == "done")
+    assert REAL_URL in done["citations"]
+    assert done["query_id"]
+
+
+async def test_admin_lists_plugins_and_sources(_ready: None) -> None:
+    """Admin can list plugins and a plugin's sources (FR-PM-1/2/4)."""
+    token = "secret-token"  # noqa: S105 - test-only token
+    app = create_app()
+    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
+    headers = {"Authorization": f"Bearer {token}"}
+    with TestClient(app) as tc:
+        plugins = tc.get("/api/v1/admin/plugins", headers=headers)
+        sources = tc.get(f"/api/v1/admin/plugins/{SLUG}/sources", headers=headers)
+
+    assert plugins.status_code == 200
+    assert any(p["slug"] == SLUG for p in plugins.json())
+    assert sources.status_code == 200
+    assert any(s["source_type"] == "wporg_faq" for s in sources.json())
 
 
 async def test_admin_metrics_requires_bearer(_ready: None, client: TestClient) -> None:

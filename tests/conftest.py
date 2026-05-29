@@ -105,6 +105,35 @@ class FakeProvider:
         )
 
 
+class FakeStreamingProvider:
+    """In-memory streaming provider for tests (implements StreamingProvider)."""
+
+    name = "fake-stream"
+
+    def __init__(self, text: str = "Answer.") -> None:
+        """Configure the canned answer streamed word by word."""
+        self._text = text
+        self.calls = 0
+
+    async def complete(self, request: Any) -> Any:
+        """Return the full canned completion (non-streaming fallback)."""
+        from app.llm.base import CompletionResult, TokenUsage
+
+        self.calls += 1
+        return CompletionResult(
+            text=self._text,
+            model=request.model,
+            usage=TokenUsage(input_tokens=10, output_tokens=20),
+        )
+
+    async def stream(self, request: Any) -> Any:
+        """Yield the canned answer one whitespace-delimited token at a time."""
+        self.calls += 1
+        tokens = self._text.split(" ")
+        for index, token in enumerate(tokens):
+            yield token if index == 0 else " " + token
+
+
 def play(cassette_name: str) -> Any:
     """Return an offline cassette context allowing repeated playback.
 

@@ -45,6 +45,16 @@ WPRAG_ANTHROPIC_API_KEY=...     # Claude provider
 WPRAG_ADMIN_BEARER_TOKEN=...    # admin endpoints
 ```
 
+The admin token is an opaque, high-entropy secret you generate (no fixed format);
+the API compares the `Authorization` header to `Bearer <token>` exactly:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"   # or: openssl rand -base64 32
+```
+
+Keep it out of version control (`.env` is git-ignored) and supply it via the
+environment in production. Without it, every `/api/v1/admin/*` endpoint returns 401.
+
 ## Embed the widget
 
 One script tag on any external page (no build step):
@@ -65,10 +75,17 @@ for a working external-page demo.
 |---|---|---|---|
 | GET | `/health` | — | Liveness + DB/Redis probes |
 | POST | `/api/v1/query` | per-IP rate limit | Ask a question; returns a cited answer + `query_id` |
+| POST | `/api/v1/query/stream` | per-IP rate limit | Same, streamed as SSE: `token` events then a `done` event |
 | POST | `/api/v1/feedback` | per-IP rate limit | Bind `helpful`/`not_helpful` to a `query_id` |
 | POST | `/api/v1/admin/plugins` | bearer | Register a plugin and its sources |
+| GET | `/api/v1/admin/plugins` | bearer | List registered plugins with source counts |
+| GET | `/api/v1/admin/plugins/{slug}/sources` | bearer | List a plugin's sources and ingestion state |
 | POST | `/api/v1/admin/ingest/{slug}` | bearer | Trigger ingestion (one Celery task per source) |
-| GET | `/api/v1/admin/metrics` | bearer | Deflection, helpful, cache-hit, degraded rates, mean cost, p95 latency |
+| GET | `/api/v1/admin/metrics` | bearer | Deflection, helpful, cache-hit, degraded rates, mean cost, p95 latency (optional `?plugin_slug=`) |
+
+The widget streams from `/api/v1/query/stream` where available and falls back to
+`/api/v1/query`. Streamed tokens are provisional; the closing `done` event carries
+the citation-validated answer.
 
 ## Production deployment
 

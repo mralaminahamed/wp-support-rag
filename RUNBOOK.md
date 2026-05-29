@@ -5,11 +5,30 @@
 Day-two operations: register a plugin, ingest its docs, query, and read metrics.
 All admin calls require the bearer token from `WPRAG_ADMIN_BEARER_TOKEN`.
 
-Set once for the session:
+## 0. Generate the admin token
+
+`WPRAG_ADMIN_BEARER_TOKEN` is an opaque, high-entropy secret (no fixed format);
+the API compares the `Authorization` header to `Bearer <token>` exactly. Generate
+one and supply it via the environment (never commit it — `.env` is git-ignored):
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"   # or: openssl rand -base64 32
+```
+
+```bash
+# local
+echo "WPRAG_ADMIN_BEARER_TOKEN=<generated>" >> .env && docker compose up -d app
+# production: set it in your secrets manager / host env before `up`
+```
+
+Rotate by changing the value and restarting. Without it, all `/api/v1/admin/*`
+endpoints return 401.
+
+## Session variables
 
 ```bash
 export API=http://localhost:8000
-export TOKEN=your-admin-bearer-token
+export TOKEN=your-admin-bearer-token   # the value from step 0
 ```
 
 ## 1. Register a plugin
@@ -30,6 +49,13 @@ curl -sS -X POST "$API/api/v1/admin/plugins" \
 A plugin and its full source set can also be loaded from a declarative file
 (`config/plugins/*.yaml`) via `app.ingestion.registry.load_plugin_config`.
 
+List registered plugins:
+
+```bash
+curl -sS "$API/api/v1/admin/plugins" -H "Authorization: Bearer $TOKEN"
+# → [{"slug":"swift-menu-duplicator","source_count":4,...}]
+```
+
 ## 2. Ingest the documentation
 
 ```bash
@@ -47,7 +73,13 @@ docker compose logs -f worker
 ```
 
 Re-run anytime — only changed documents are re-embedded. A schedule (Celery beat)
-can keep the corpus fresh.
+can keep the corpus fresh. Inspect a plugin's sources and last-ingested state:
+
+```bash
+curl -sS "$API/api/v1/admin/plugins/swift-menu-duplicator/sources" \
+  -H "Authorization: Bearer $TOKEN"
+# → [{"source_type":"wporg_faq","enabled":true,"last_ingested_at":"2026-…"}]
+```
 
 ## 3. Query
 
@@ -60,6 +92,16 @@ curl -sS -X POST "$API/api/v1/query" -H "Content-Type: application/json" \
 The response carries the grounded `answer`, `citations` (only supplied source
 URLs), `sources` (links for the widget), a `query_id`, and `cached`/`degraded`/
 `declined` flags. Omit `plugin_slug` to let centroid routing pick the plugin.
+
+Stream the answer as Server-Sent Events (what the widget uses when available):
+
+```bash
+curl -sS -N -X POST "$API/api/v1/query/stream" -H "Content-Type: application/json" \
+  -d '{"question":"Does duplicating copy theme location assignments?",
+       "plugin_slug":"swift-menu-duplicator"}'
+# event: token  → incremental deltas (provisional)
+# event: done   → {query_id, answer, citations, sources, ...}  (citation-validated)
+```
 
 - **Degraded** (`degraded: true`): every provider was unreachable — the user still
   gets the retrieved passages with links (fail-open).
@@ -78,6 +120,10 @@ curl -sS -X POST "$API/api/v1/feedback" -H "Content-Type: application/json" \
 ```bash
 curl -sS "$API/api/v1/admin/metrics" -H "Authorization: Bearer $TOKEN"
 # deflection_rate, helpful_rate, cache_hit_rate, degraded_rate, mean_cost_usd, p95_latency_ms
+
+# Scope to one plugin:
+curl -sS "$API/api/v1/admin/metrics?plugin_slug=swift-menu-duplicator" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Health and dependency reachability:

@@ -3,6 +3,8 @@ import type {
   Health,
   IngestAllResponse,
   IngestTriggerResponse,
+  LLMConfig,
+  LLMConfigUpdate,
   Metrics,
   PluginRegistration,
   PluginSummary,
@@ -49,5 +51,20 @@ export async function getMetrics(pluginSlug?: string): Promise<Metrics> {
   const res = await apiClient.get<Metrics>("/api/v1/admin/metrics", {
     params: pluginSlug ? { plugin_slug: pluginSlug } : undefined,
   });
+  return res.data;
+}
+
+export async function getLlmConfig(): Promise<LLMConfig> {
+  const res = await apiClient.get<LLMConfig>("/api/v1/admin/llm");
+  return res.data;
+}
+
+export async function updateLlmConfig(payload: LLMConfigUpdate): Promise<LLMConfig> {
+  const res = await apiClient.put<LLMConfig>("/api/v1/admin/llm", payload);
+  return res.data;
+}
+
+export async function resetLlmConfig(): Promise<LLMConfig> {
+  const res = await apiClient.delete<LLMConfig>("/api/v1/admin/llm");
   return res.data;
 }

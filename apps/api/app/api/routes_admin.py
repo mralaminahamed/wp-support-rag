@@ -12,18 +12,23 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from redis.asyncio import Redis
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_admin
+from app.api.deps import get_redis_dep, get_settings_dep, require_admin
 from app.api.schemas import (
     IngestAllResponse,
     IngestTriggerResponse,
+    LLMConfigResponse,
+    LLMConfigUpdate,
+    LLMProviderInfo,
     MetricsResponse,
     PluginRegistration,
     PluginSummary,
     SourceSummary,
 )
+from app.config import ProviderName, Settings
 from app.db.engine import get_session
 from app.db.models import Feedback, Query
 from app.ingestion.registry import (
@@ -33,6 +38,14 @@ from app.ingestion.registry import (
     list_plugins,
     list_sources,
     load_plugin_spec,
+)
+from app.llm.runtime import (
+    PROVIDERS,
+    clear_override,
+    env_model,
+    is_configured,
+    resolve,
+    set_override,
 )
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"], dependencies=[Depends(require_admin)])
@@ -53,6 +66,102 @@ def _percentile(values: list[int], pct: float) -> int:
     ordered = sorted(values)
     rank = max(0, min(len(ordered) - 1, round(pct * len(ordered)) - 1))
     return ordered[rank]
+
+
+async def _llm_config(redis: Redis, settings: Settings) -> LLMConfigResponse:
+    """Assemble the LLM-config response from the effective selection.
+
+    Args:
+        redis: Redis client backing the runtime override.
+        settings: Application settings supplying the env defaults.
+
+    Returns:
+        LLMConfigResponse: Active provider/model plus all selectable providers.
+    """
+    effective = await resolve(redis, settings)
+    return LLMConfigResponse(
+        provider=effective.provider,
+        model=effective.model,
+        source=effective.source,
+        default_provider=settings.default_provider,
+        providers=[
+            LLMProviderInfo(
+                name=name,
+                default_model=env_model(settings, name),
+                configured=is_configured(settings, name),
+            )
+            for name in PROVIDERS
+        ],
+    )
+
+
+@router.get("/llm", response_model=LLMConfigResponse)
+async def get_llm_config(
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> LLMConfigResponse:
+    """Return the active generation provider/model and the choices (FR-GN-3).
+
+    Args:
+        redis: Redis client backing the runtime override.
+        settings: Application settings.
+
+    Returns:
+        LLMConfigResponse: The effective configuration.
+    """
+    return await _llm_config(redis, settings)
+
+
+@router.put("/llm", response_model=LLMConfigResponse)
+async def set_llm_config(
+    payload: LLMConfigUpdate,
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> LLMConfigResponse:
+    """Override the active generation provider/model at runtime (FR-GN-3).
+
+    The model is optional and defaults to the provider's env-configured model.
+    The override is stored in Redis and applied to subsequent generations
+    without a restart.
+
+    Args:
+        payload: The provider and optional model to activate.
+        redis: Redis client backing the runtime override.
+        settings: Application settings.
+
+    Returns:
+        LLMConfigResponse: The new effective configuration.
+
+    Raises:
+        HTTPException: 422 if the provider is unknown.
+    """
+    if payload.provider not in PROVIDERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"unknown provider: {payload.provider}",
+        )
+    provider: ProviderName = payload.provider
+    model = (payload.model or "").strip() or env_model(settings, provider)
+    await set_override(redis, provider, model)
+    return await _llm_config(redis, settings)
+
+
+@router.delete("/llm", response_model=LLMConfigResponse)
+async def reset_llm_config(
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> LLMConfigResponse:
+    """Clear any override and revert to the env-file defaults (FR-GN-3).
+
+    Args:
+        redis: Redis client backing the runtime override.
+        settings: Application settings.
+
+    Returns:
+        LLMConfigResponse: The configuration after reverting to env defaults.
+    """
+    await clear_override(redis)
+    return await _llm_config(redis, settings)
 
 
 @router.post("/plugins", status_code=status.HTTP_201_CREATED)

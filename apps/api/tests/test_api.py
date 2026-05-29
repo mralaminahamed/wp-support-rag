@@ -216,6 +216,57 @@ async def test_admin_ingest_all_enqueues_every_source(
     assert sum(p["enqueued_sources"] for p in body["by_plugin"]) == body["enqueued_sources"]
 
 
+async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
+    """Admin can read, override, and reset the active provider/model (FR-GN-3)."""
+    token = "secret-token"  # noqa: S105 - test-only token
+    app = create_app()
+    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
+    headers = {"Authorization": f"Bearer {token}"}
+    with TestClient(app) as tc:
+        initial = tc.get("/api/v1/admin/llm", headers=headers)
+        assert initial.status_code == 200
+        body = initial.json()
+        assert body["provider"] == "anthropic"
+        assert body["source"] == "env"
+        assert {p["name"] for p in body["providers"]} == {"anthropic", "openai", "ollama"}
+
+        set_resp = tc.put(
+            "/api/v1/admin/llm",
+            headers=headers,
+            json={"provider": "ollama", "model": "llama3.1:8b"},
+        )
+        assert set_resp.status_code == 200
+        overridden = set_resp.json()
+        assert overridden["provider"] == "ollama"
+        assert overridden["model"] == "llama3.1:8b"
+        assert overridden["source"] == "override"
+
+        # The override persists across reads.
+        assert tc.get("/api/v1/admin/llm", headers=headers).json()["provider"] == "ollama"
+
+        # Omitting the model falls back to the provider's env default.
+        defaulted = tc.put(
+            "/api/v1/admin/llm", headers=headers, json={"provider": "openai"}
+        ).json()
+        assert defaulted["provider"] == "openai"
+        assert defaulted["model"] == Settings().openai_model
+
+        # Unknown providers are rejected.
+        assert (
+            tc.put("/api/v1/admin/llm", headers=headers, json={"provider": "nope"}).status_code
+            == 422
+        )
+
+        reset = tc.delete("/api/v1/admin/llm", headers=headers).json()
+        assert reset["source"] == "env"
+        assert reset["provider"] == "anthropic"
+
+
+async def test_admin_llm_config_requires_bearer(_ready: None, client: TestClient) -> None:
+    """The LLM-config endpoint rejects unauthenticated calls (FR-DL-4)."""
+    assert client.get("/api/v1/admin/llm").status_code == 401
+
+
 async def test_admin_metrics_requires_bearer(_ready: None, client: TestClient) -> None:
     """Admin metrics reject unauthenticated calls and accept the configured token."""
     assert client.get("/api/v1/admin/metrics").status_code == 401

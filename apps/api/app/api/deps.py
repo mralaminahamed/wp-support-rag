@@ -19,6 +19,7 @@ from app.config import Settings, get_settings
 from app.db.redis import get_redis
 from app.llm.base import LLMProvider
 from app.llm.factory import build_provider
+from app.llm.runtime import resolve
 from app.processing.embedder import EmbeddingClient, build_embedding_client
 
 
@@ -49,13 +50,42 @@ def get_embedding_client() -> EmbeddingClient:
     return build_embedding_client(get_settings())
 
 
-def get_provider() -> LLMProvider:
-    """Return the configured LLM provider (overridable in tests).
+async def get_provider(
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> LLMProvider:
+    """Return the active LLM provider, honouring a runtime override (FR-GN-3).
+
+    The provider defaults to ``settings.default_provider`` and is overridden by
+    the Redis-stored admin selection when present (see ``app.llm.runtime``).
+    Overridable in tests via ``app.dependency_overrides``.
+
+    Args:
+        redis: Redis client backing the runtime override.
+        settings: Application settings supplying the default provider.
 
     Returns:
-        LLMProvider: The provider.
+        LLMProvider: The resolved provider.
     """
-    return build_provider(get_settings())
+    config = await resolve(redis, settings)
+    return build_provider(settings, config.provider)
+
+
+async def get_active_model_dep(
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> str:
+    """Return the active model id, honouring a runtime override (FR-GN-3).
+
+    Args:
+        redis: Redis client backing the runtime override.
+        settings: Application settings supplying the per-provider defaults.
+
+    Returns:
+        str: The resolved model id for the active provider.
+    """
+    config = await resolve(redis, settings)
+    return config.model
 
 
 def hash_ip(ip: str) -> str:

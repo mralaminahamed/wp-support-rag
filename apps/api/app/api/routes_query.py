@@ -21,6 +21,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
+    get_active_model_dep,
     get_embedding_client,
     get_provider,
     get_redis_dep,
@@ -90,6 +91,7 @@ async def query(
     settings: Settings = Depends(get_settings_dep),
     embedder: EmbeddingClient = Depends(get_embedding_client),
     provider: LLMProvider = Depends(get_provider),
+    model: str = Depends(get_active_model_dep),
     ip_hash: str = Depends(rate_limit),
 ) -> QueryResponse:
     """Answer a question and log the query (FR-DL-1, FR-FB-1).
@@ -101,6 +103,7 @@ async def query(
         settings: Application settings.
         embedder: Embedding client.
         provider: LLM provider.
+        model: Active model id (honours the runtime override).
         ip_hash: Hashed caller IP from the rate limiter (NFR-SC-5).
 
     Returns:
@@ -115,7 +118,9 @@ async def query(
         plugin_slug=payload.plugin_slug,
         settings=settings,
     )
-    generation = await generate(redis, provider, payload.question, result.chunks, settings=settings)
+    generation = await generate(
+        redis, provider, payload.question, result.chunks, settings=settings, model=model
+    )
     latency_ms = int((perf_counter() - start) * 1000)
 
     plugin_id = None
@@ -174,6 +179,7 @@ async def query_stream(
     settings: Settings = Depends(get_settings_dep),
     embedder: EmbeddingClient = Depends(get_embedding_client),
     provider: LLMProvider = Depends(get_provider),
+    model: str = Depends(get_active_model_dep),
     ip_hash: str = Depends(rate_limit),
 ) -> StreamingResponse:
     """Stream a cited answer as Server-Sent Events (FR-DL-3).
@@ -189,6 +195,7 @@ async def query_stream(
         settings: Application settings.
         embedder: Embedding client.
         provider: LLM provider.
+        model: Active model id (honours the runtime override).
         ip_hash: Hashed caller IP from the rate limiter (NFR-SC-5).
 
     Returns:
@@ -207,7 +214,7 @@ async def query_stream(
     async def event_source() -> AsyncIterator[str]:
         final: StreamEvent | None = None
         async for event in generate_stream(
-            redis, provider, payload.question, result.chunks, settings=settings
+            redis, provider, payload.question, result.chunks, settings=settings, model=model
         ):
             if event.type == "token":
                 yield _sse("token", {"text": event.text})

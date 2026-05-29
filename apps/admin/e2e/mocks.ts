@@ -49,6 +49,18 @@ const QUERY_RESPONSE = {
   latency_ms: 540,
 };
 
+const LLM_CONFIG = {
+  provider: "anthropic",
+  model: "claude-sonnet-4-6",
+  source: "env",
+  default_provider: "anthropic",
+  providers: [
+    { name: "anthropic", default_model: "claude-sonnet-4-6", configured: true },
+    { name: "openai", default_model: "gpt-4o-mini", configured: true },
+    { name: "ollama", default_model: "llama3.1", configured: true },
+  ],
+};
+
 /** Register all API mocks. Specific routes are added last so they win. */
 export async function mockApi(page: Page): Promise<void> {
   await page.route("**/health", (route) =>
@@ -87,6 +99,26 @@ export async function mockApi(page: Page): Promise<void> {
       route.fulfill({ json: { slug: "new-plugin", id: "abc" } });
     } else {
       route.fulfill({ json: PLUGINS });
+    }
+  });
+
+  await page.route("**/api/v1/admin/llm", (route) => {
+    const method = route.request().method();
+    if (method === "PUT") {
+      const body = route.request().postDataJSON() as { provider: string; model?: string };
+      const fallback = LLM_CONFIG.providers.find((p) => p.name === body.provider)?.default_model;
+      route.fulfill({
+        json: {
+          ...LLM_CONFIG,
+          provider: body.provider,
+          model: body.model || fallback || LLM_CONFIG.model,
+          source: "override",
+        },
+      });
+    } else if (method === "DELETE") {
+      route.fulfill({ json: LLM_CONFIG });
+    } else {
+      route.fulfill({ json: LLM_CONFIG });
     }
   });
 

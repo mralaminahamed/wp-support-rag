@@ -189,3 +189,47 @@ class IngestAllResponse(BaseModel):
     plugins: int
     enqueued_sources: int
     by_plugin: list[IngestTriggerResponse]
+
+
+class LLMProviderInfo(BaseModel):
+    """A selectable generation provider and its env-default model (FR-GN-3).
+
+    Attributes:
+        name: The provider name.
+        default_model: The model id configured for this provider in the env file.
+        configured: Whether the provider has the credentials/endpoint it needs.
+    """
+
+    name: str
+    default_model: str
+    configured: bool
+
+
+class LLMConfigResponse(BaseModel):
+    """The active generation provider/model and the available choices (FR-GN-3).
+
+    Attributes:
+        provider: The active provider name.
+        model: The active model id.
+        source: ``"override"`` if set from the admin UI, else ``"env"``.
+        default_provider: The provider configured in the env file.
+        providers: All selectable providers with their env-default models.
+    """
+
+    provider: str
+    model: str
+    source: str
+    default_provider: str
+    providers: list[LLMProviderInfo]
+
+
+class LLMConfigUpdate(BaseModel):
+    """Request to override the active generation provider/model (FR-GN-3).
+
+    Attributes:
+        provider: The provider to activate.
+        model: Optional model id; falls back to the provider's env default.
+    """
+
+    provider: str
+    model: str | None = None

@@ -70,6 +70,25 @@ export interface SourceRef {
   cited: boolean;
 }
 
+export interface LLMProviderInfo {
+  name: string;
+  default_model: string;
+  configured: boolean;
+}
+
+export interface LLMConfig {
+  provider: string;
+  model: string;
+  source: "override" | "env";
+  default_provider: string;
+  providers: LLMProviderInfo[];
+}
+
+export interface LLMConfigUpdate {
+  provider: string;
+  model?: string | null;
+}
+
 export interface QueryResponse {
   query_id: string;
   answer: string;

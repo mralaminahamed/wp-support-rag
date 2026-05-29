@@ -28,6 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Application source.
 COPY app ./app
 COPY eval ./eval
+COPY alembic.ini ./alembic.ini
 
 # Non-root runtime user.
 RUN useradd --create-home --uid 10001 appuser

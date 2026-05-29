@@ -11,7 +11,7 @@ __pycache__
 htmlcov
 tests
 docs
-widget
+apps/web
 .env
 .env.*
 !.env.example

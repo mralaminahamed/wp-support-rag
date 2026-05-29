@@ -11,6 +11,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 
+from app.config import get_settings
 from app.db.engine import get_sessionmaker
 from app.db.models import Document, IngestionRun, Source
 from app.ingestion.adapters.base import RawDocument, SourceContext, SourceFetchError
@@ -18,9 +19,10 @@ from app.ingestion.registry import add_source, create_plugin
 from app.ingestion.tasks import ingest_source
 from sqlalchemy import select
 
-from tests.conftest import play
+from tests.conftest import FakeEmbeddingClient, play
 
 SLUG = "swift-menu-duplicator"
+_EMBED = FakeEmbeddingClient(get_settings().embedding_dimensions)
 
 
 class _RaisingAdapter:
@@ -68,7 +70,10 @@ async def test_two_source_types_land_then_rerun_creates_zero_new(clean_plugins: 
     plugin_id, ids = await _make_plugin("phase2-smd", ["wporg_faq", "wporg_changelog"])
 
     with play("wporg_plugin_info.yaml"):
-        first = [await ingest_source(ids["wporg_faq"]), await ingest_source(ids["wporg_changelog"])]
+        first = [
+            await ingest_source(ids["wporg_faq"], embedding_client=_EMBED),
+            await ingest_source(ids["wporg_changelog"], embedding_client=_EMBED),
+        ]
 
     assert all(s.status == "succeeded" for s in first)
     assert all(s.documents_new == 1 for s in first)
@@ -76,8 +81,8 @@ async def test_two_source_types_land_then_rerun_creates_zero_new(clean_plugins: 
 
     with play("wporg_plugin_info.yaml"):
         second = [
-            await ingest_source(ids["wporg_faq"]),
-            await ingest_source(ids["wporg_changelog"]),
+            await ingest_source(ids["wporg_faq"], embedding_client=_EMBED),
+            await ingest_source(ids["wporg_changelog"], embedding_client=_EMBED),
         ]
 
     assert all(s.documents_new == 0 for s in second)
@@ -97,7 +102,7 @@ async def test_single_source_failure_leaves_siblings_succeeded(clean_plugins: No
     plugin_id, ids = await _make_plugin("phase2-iso", ["wporg_faq", "github_issues"])
 
     with play("wporg_plugin_info.yaml"):
-        ok = await ingest_source(ids["wporg_faq"])
+        ok = await ingest_source(ids["wporg_faq"], embedding_client=_EMBED)
     failed = await ingest_source(ids["github_issues"], adapter=_RaisingAdapter())
 
     assert ok.status == "succeeded" and ok.documents_new == 1

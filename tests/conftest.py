@@ -31,6 +31,26 @@ offline_vcr = vcr.VCR(
 )
 
 
+class FakeEmbeddingClient:
+    """Deterministic offline embedding client for tests (no live API calls)."""
+
+    def __init__(self, dimensions: int) -> None:
+        """Initialise with the target vector width and a call recorder."""
+        self.dimensions = dimensions
+        self.batch_sizes: list[int] = []
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        """Return one distinct, non-zero vector per text and record the batch size."""
+        self.batch_sizes.append(len(texts))
+        return [self._vector(text) for text in texts]
+
+    def _vector(self, text: str) -> list[float]:
+        """Build a deterministic non-null vector keyed on the text."""
+        vector = [0.001] * self.dimensions
+        vector[len(text) % self.dimensions] = 1.0
+        return vector
+
+
 def play(cassette_name: str) -> Any:
     """Return an offline cassette context allowing repeated playback.
 

@@ -32,7 +32,7 @@ import { extractErrorMessage } from "@/lib/queryClient";
 
 export function SettingsPage() {
   return (
-    <div className="space-y-5">
+    <div className="max-w-2xl space-y-5">
       <PageHeader
         title="Settings"
         description="API connection, generation provider, and embeddings."
@@ -115,7 +115,7 @@ function ConnectionCard() {
   }
 
   return (
-    <Card className="max-w-xl">
+    <Card>
       <CardHeader>
         <CardTitle>Connection</CardTitle>
       </CardHeader>
@@ -193,7 +193,7 @@ function GenerationCard() {
   const dirty = current ? provider !== current.provider || model.trim() !== current.model : false;
 
   return (
-    <Card className="max-w-xl">
+    <Card>
       <CardHeader>
         <CardTitle>Generation</CardTitle>
       </CardHeader>
@@ -314,7 +314,7 @@ function EmbeddingCard() {
     : false;
 
   return (
-    <Card className="max-w-xl">
+    <Card>
       <CardHeader>
         <CardTitle>Embeddings</CardTitle>
       </CardHeader>

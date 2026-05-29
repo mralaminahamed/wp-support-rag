@@ -136,18 +136,20 @@ export function PlaygroundPage() {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-7rem)] max-w-3xl flex-col">
-      <div className="flex-1 space-y-6 overflow-y-auto pb-4">
+      <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <Greeting onPick={(q) => void run(q)} disabled={busy} />
         ) : (
-          messages.map((turn) => (
-            <div key={turn.id} className="space-y-4">
-              <UserBubble text={turn.question} />
-              <AssistantMessage turn={turn} onFeedback={sendFeedback} />
-            </div>
-          ))
+          <div className="space-y-6 pb-4">
+            {messages.map((turn) => (
+              <div key={turn.id} className="space-y-4">
+                <UserBubble text={turn.question} />
+                <AssistantMessage turn={turn} onFeedback={sendFeedback} />
+              </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
         )}
-        <div ref={bottomRef} />
       </div>
 
       <Composer

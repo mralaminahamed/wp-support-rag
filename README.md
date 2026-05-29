@@ -19,12 +19,18 @@ widget → POST /api/v1/query
 ```
 
 - **Frameworkless** pgvector RAG — no LangChain/LlamaIndex in the hot path.
-- **Embeddings**: `text-embedding-3-large` stored as `halfvec(3072)` with an HNSW
-  index (config fallback to `vector(1536)`).
+- **Embeddings**: OpenAI `text-embedding-3-large` as `halfvec(3072)` with an HNSW
+  index, or **fully-local Ollama** (e.g. `nomic-embed-text`, 768-dim) — selected by
+  config. The vector width is bound to the column + index, so switching providers
+  needs a migration and a re-embed (not a runtime toggle).
 - **Hybrid retrieval**: vector + lexical fused with Reciprocal Rank Fusion.
-- **Multi-provider generation**: Claude, OpenAI, or Ollama, interchangeable by config.
+- **Multi-provider generation**: Claude, OpenAI, or Ollama, interchangeable by config
+  and switchable at runtime from the admin Settings page.
+- **Runs fully local**: point generation *and* embeddings at Ollama and the whole
+  pipeline needs no external API.
 - **Grounded & cited**: only source URLs of supplied chunks may be cited.
-- **Resilient**: fail-open on provider outage; per-request cost circuit breaker.
+- **Resilient**: fail-open on provider outage (degraded links); a clear 503 when the
+  embeddings provider is unconfigured; per-request cost circuit breaker.
 
 See `docs/` for the full SRS, architecture, implementation plan, and ADRs.
 
@@ -35,10 +41,10 @@ self-contained under `apps/api`.
 
 ```
 apps/
-  api/    # Python backend — FastAPI + Celery (package `app`, eval/, tests/, own pyproject + uv.lock)
+  api/    # Python backend — FastAPI + Celery (package `app`, eval/, tests/, scripts/, own pyproject + uv.lock)
   web/    # embeddable support widget (single-file, no build)
   admin/  # admin console — Vite + React + TypeScript
-config/plugins/   # declarative plugin registrations (FR-PM-5)
+config/plugins/   # declarative plugin registrations (FR-PM-5; see config/README.md)
 docker-compose*.yml  pnpm-workspace.yaml  turbo.json
 ```
 
@@ -58,13 +64,22 @@ Redis, the **widget** (`web`, `:8080`), and the **admin** console (`admin`, `:80
 In production (`docker-compose.prod.yml`) Caddy serves the API + widget on
 `$DOMAIN` and the admin console on `admin.$DOMAIN`, all with automatic TLS.
 
-Set provider keys (for real generation) in `.env` (see `.env.example`):
+Set provider keys / selection in `.env` (see `.env.example`):
 
 ```
-WPRAG_OPENAI_API_KEY=...        # embeddings + OpenAI provider
+WPRAG_OPENAI_API_KEY=...        # embeddings (OpenAI mode) + OpenAI generation
 WPRAG_ANTHROPIC_API_KEY=...     # Claude provider
+WPRAG_DEFAULT_PROVIDER=ollama   # generation provider: anthropic | openai | ollama
+WPRAG_EMBEDDING_PROVIDER=ollama # embeddings backend: openai (default) | ollama
+WPRAG_OLLAMA_BASE_URL=http://host.docker.internal:11434  # reach a host Ollama from Docker
+WPRAG_GITHUB_TOKEN=...          # raises the GitHub rate limit + enables private-repo ingestion
 WPRAG_ADMIN_BEARER_TOKEN=...    # admin endpoints
 ```
+
+For a fully-local setup, run [Ollama](https://ollama.com) on the host
+(`ollama pull llama3.2 && ollama pull nomic-embed-text`), keep the defaults above,
+then `alembic upgrade head` and re-ingest so the embedding column matches the
+local model's width. No OpenAI/Anthropic key is then required.
 
 The admin token is an opaque, high-entropy secret you generate (no fixed format);
 the API compares the `Authorization` header to `Bearer <token>` exactly:
@@ -87,8 +102,17 @@ One script tag on any external page (no build step):
 ```
 
 It posts to `/api/v1/query`, renders the cited answer, and offers a
-helpful/not-helpful control posting to `/api/v1/feedback`. See `apps/web/index.html` (and an admin console at `apps/web/admin.html`)
+helpful/not-helpful control posting to `/api/v1/feedback`. See `apps/web/index.html`
 for a working external-page demo.
+
+## Admin console
+
+The `admin` app (`:8081`, `apps/admin`) is a React console for operating the service:
+
+- **Dashboard** — service health, query metrics, corpus coverage, and a recent-activity feed.
+- **Plugins** — searchable/sortable registry; expand a plugin to see its sources and trigger ingestion.
+- **Playground** — a chat-style interface for grounded, cited Q&A (each turn is an independent RAG query, streamed).
+- **Settings** — switch the generation and embedding provider/model at runtime (with an Ollama model picker), test the API connection, and set your profile (name + email → Gravatar avatar). Light/dark theme.
 
 ## API
 
@@ -101,8 +125,13 @@ for a working external-page demo.
 | POST | `/api/v1/admin/plugins` | bearer | Register a plugin and its sources |
 | GET | `/api/v1/admin/plugins` | bearer | List registered plugins with source counts |
 | GET | `/api/v1/admin/plugins/{slug}/sources` | bearer | List a plugin's sources and ingestion state |
+| POST | `/api/v1/admin/ingest` | bearer | Trigger ingestion for every plugin's sources |
 | POST | `/api/v1/admin/ingest/{slug}` | bearer | Trigger ingestion (one Celery task per source) |
 | GET | `/api/v1/admin/metrics` | bearer | Deflection, helpful, cache-hit, degraded rates, mean cost, p95 latency (optional `?plugin_slug=`) |
+| GET | `/api/v1/admin/queries` | bearer | Recent queries for the activity feed (`?limit=`) |
+| GET·PUT·DELETE | `/api/v1/admin/llm` | bearer | Read / override / reset the active generation provider+model |
+| PUT·DELETE | `/api/v1/admin/llm/embedding` | bearer | Override / reset the embedding provider+model (same vector width only) |
+| GET | `/api/v1/admin/ollama/models` | bearer | List models available on the configured Ollama server |
 
 The widget streams from `/api/v1/query/stream` where available and falls back to
 `/api/v1/query`. Streamed tokens are provisional; the closing `done` event carries
@@ -122,11 +151,35 @@ All secrets are environment-only. See `RUNBOOK.md` for day-two operations.
 ## Quality gates
 
 ```bash
-ruff check . && ruff format --check .     # lint + format
-mypy --strict app eval                   # types (from apps/api)
-pytest                                    # tests (external calls mocked/VCR-replayed)
-python -m eval.harness                     # offline eval gate (from apps/api)
+# Backend (from apps/api)
+ruff check . && ruff format --check .       # lint + format
+mypy --strict app eval                      # types
+pytest                                       # tests (external calls mocked/VCR-replayed)
+python -m eval.harness                       # offline eval gate
+
+# Admin console (from repo root)
+pnpm --filter @wp-support-rag/admin type-check
+pnpm --filter @wp-support-rag/admin lint
+pnpm --filter @wp-support-rag/admin build
+pnpm --filter @wp-support-rag/admin e2e      # Playwright (API mocked)
 ```
 
-CI runs lint/typecheck/test on every push; the eval gate runs on changes under
-`apps/api/app/prompts/`, `apps/api/app/rag/`, or `apps/api/eval/dataset/` and blocks regressions.
+CI runs backend lint/typecheck/test and the admin build + e2e on every push; the
+eval gate runs on changes under `apps/api/app/prompts/`, `apps/api/app/rag/`, or
+`apps/api/eval/dataset/` and blocks regressions.
+
+> Note: the embedding dimension is bound to the DB column + HNSW index, so the
+> backend integration tests must run against a database at the configured width.
+> See `RUNBOOK.md` §5 for running tests against a local Ollama (768-dim) dev DB.
+
+## Plugin registry
+
+Plugins are declared in `config/plugins/*.yaml` and synced into the database:
+
+```bash
+cd apps/api
+WPRAG_DATABASE_DSN=postgresql+asyncpg://wprag:wprag@localhost:5432/wprag \
+  python -m scripts.sync_plugins          # add/update; --prune drops undeclared plugins
+```
+
+See `config/README.md` for the file schema and source types.

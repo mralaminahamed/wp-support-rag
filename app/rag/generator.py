@@ -14,16 +14,24 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis
 
 from app.config import Settings, get_settings
-from app.llm.base import CompletionRequest, LLMProvider, ProviderError, TokenUsage
+from app.llm.base import (
+    CompletionRequest,
+    LLMProvider,
+    ProviderError,
+    StreamingProvider,
+    TokenUsage,
+)
 from app.llm.cache import CachedAnswer, ResponseCache, cache_key
 from app.llm.circuit_breaker import CostCircuitBreaker
 from app.llm.factory import active_model
+from app.processing.chunker import count_tokens
 from app.prompts.registry import get_registry
 from app.rag.retriever import RetrievedChunk
 
@@ -61,6 +69,31 @@ class GenerationResult(BaseModel):
     chunks: list[RetrievedChunk] = Field(default_factory=list)
     model: str
     prompt_version: str
+    cached: bool = False
+    degraded: bool = False
+    declined: bool = False
+    usage: TokenUsage | None = None
+
+
+class StreamEvent(BaseModel):
+    """One event in a streaming generation (FR-DL-3).
+
+    Attributes:
+        type: ``"token"`` for an incremental delta, ``"final"`` for the closing
+            event carrying the validated answer and citations.
+        text: The token delta (for ``type == "token"``).
+        answer: The validated answer text (for ``type == "final"``).
+        citations: Cited source URLs (for ``type == "final"``).
+        cached: Whether the answer came from cache.
+        degraded: Whether fail-open degraded mode was used.
+        declined: Whether the decline path was taken.
+        usage: Token usage, when known.
+    """
+
+    type: Literal["token", "final"]
+    text: str = ""
+    answer: str | None = None
+    citations: list[str] = Field(default_factory=list)
     cached: bool = False
     degraded: bool = False
     declined: bool = False
@@ -183,6 +216,140 @@ async def generate(
         model=result.model,
         prompt_version=prompt.version,
         usage=result.usage,
+    )
+
+
+async def generate_stream(
+    redis: Redis,
+    provider: LLMProvider,
+    query: str,
+    chunks: list[RetrievedChunk],
+    *,
+    model: str | None = None,
+    settings: Settings | None = None,
+) -> AsyncIterator[StreamEvent]:
+    """Stream a grounded answer, ending with a validated final event (FR-DL-3).
+
+    Tokens are streamed provisionally; the closing ``final`` event carries the
+    citation-validated answer (FR-GN-8) so the client replaces the streamed text
+    with the validated text. Falls back to a single token event for providers
+    without streaming support, decline (FR-GN-7), cache hits, and fail-open on
+    provider failure (FR-GN-6). The cost breaker guards up front and aborts an
+    overrun mid-stream (FR-GN-5).
+
+    Args:
+        redis: Async Redis client for the response cache.
+        provider: The resolved LLM provider.
+        query: The user question.
+        chunks: The retrieved chunks supplying the grounded context.
+        model: Model id; resolved from configuration if omitted.
+        settings: Application settings; resolved from configuration if omitted.
+
+    Yields:
+        StreamEvent: Token events then one final event.
+
+    Raises:
+        CostCeilingExceeded: If the request is projected to exceed the ceiling.
+    """
+    settings = settings or get_settings()
+    model = model or active_model(settings)
+    prompt = get_registry().active("support_answer")
+
+    if not chunks:
+        yield StreamEvent(type="token", text=DECLINE_MESSAGE)
+        yield StreamEvent(type="final", answer=DECLINE_MESSAGE, declined=True)
+        return
+
+    cache = ResponseCache(redis, settings.response_cache_ttl_seconds)
+    key = cache_key(query, [chunk.chunk_id for chunk in chunks], model, prompt.version)
+    hit = await cache.get(key)
+    if hit is not None:
+        yield StreamEvent(type="token", text=hit.answer)
+        yield StreamEvent(
+            type="final",
+            answer=hit.answer,
+            citations=hit.citations,
+            cached=True,
+            usage=TokenUsage(input_tokens=hit.input_tokens, output_tokens=hit.output_tokens),
+        )
+        return
+
+    request = CompletionRequest(
+        system=prompt.system,
+        user=prompt.render(query, chunks),
+        model=model,
+        max_tokens=settings.llm_max_output_tokens,
+    )
+    breaker = CostCircuitBreaker(settings)
+    breaker.guard(request)
+    allowed = {chunk.source_url for chunk in chunks}
+
+    if not isinstance(provider, StreamingProvider):
+        try:
+            result = await provider.complete(request)
+        except ProviderError:
+            async for event in _degraded(chunks):
+                yield event
+            return
+        cleaned, citations = validate_citations(result.text, allowed)
+        await _store(cache, key, cleaned, citations, result.model, prompt.version, result.usage)
+        yield StreamEvent(type="token", text=cleaned)
+        yield StreamEvent(type="final", answer=cleaned, citations=citations, usage=result.usage)
+        return
+
+    input_tokens = count_tokens(request.system) + count_tokens(request.user)
+    parts: list[str] = []
+    try:
+        async for delta in provider.stream(request):
+            parts.append(delta)
+            yield StreamEvent(type="token", text=delta)
+            if breaker.overruns(input_tokens, count_tokens("".join(parts))):
+                logger.warning("aborting streaming overrun", extra={"degraded": False})
+                break
+    except ProviderError:
+        async for event in _degraded(chunks):
+            yield event
+        return
+
+    text = "".join(parts)
+    cleaned, citations = validate_citations(text, allowed)
+    usage = TokenUsage(input_tokens=input_tokens, output_tokens=count_tokens(text))
+    await _store(cache, key, cleaned, citations, model, prompt.version, usage)
+    yield StreamEvent(type="final", answer=cleaned, citations=citations, usage=usage)
+
+
+async def _degraded(chunks: list[RetrievedChunk]) -> AsyncIterator[StreamEvent]:
+    """Yield the degraded fail-open events for a stream (FR-GN-6)."""
+    logger.warning("generation degraded: provider failure", extra={"degraded": True})
+    yield StreamEvent(type="token", text=DEGRADED_NOTICE)
+    yield StreamEvent(
+        type="final",
+        answer=DEGRADED_NOTICE,
+        citations=_ordered_unique(chunk.source_url for chunk in chunks),
+        degraded=True,
+    )
+
+
+async def _store(
+    cache: ResponseCache,
+    key: str,
+    answer: str,
+    citations: list[str],
+    model: str,
+    prompt_version: str,
+    usage: TokenUsage,
+) -> None:
+    """Persist a completed answer to the response cache."""
+    await cache.set(
+        key,
+        CachedAnswer(
+            answer=answer,
+            citations=citations,
+            model=model,
+            prompt_version=prompt_version,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+        ),
     )
 
 

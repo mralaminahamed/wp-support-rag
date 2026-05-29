@@ -11,7 +11,7 @@ test("dashboard shows health and metrics", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
   // Health card.
-  await expect(page.getByText("Service health")).toBeVisible();
+  await expect(page.getByText("Service health", { exact: true })).toBeVisible();
   await expect(page.getByText("development")).toBeVisible();
 
   // Metric values from the mock.

@@ -83,7 +83,10 @@ export function PlaygroundPage() {
 
   return (
     <div>
-      <PageHeader title="Playground" />
+      <PageHeader
+        title="Playground"
+        description="Ask a question and inspect the grounded, cited answer."
+      />
 
       <Card className="mb-5">
         <CardContent>

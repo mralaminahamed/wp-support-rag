@@ -42,7 +42,7 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" description="API connection and admin authentication." />
       <Card className="max-w-xl">
         <CardHeader>
           <CardTitle>Connection</CardTitle>

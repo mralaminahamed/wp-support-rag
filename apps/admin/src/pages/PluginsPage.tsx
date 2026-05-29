@@ -1,6 +1,6 @@
 // Plugins: list, register, expand sources, ingest per plugin / all. Author: Al Amin Ahamed.
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Play, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, Play, Plus } from "lucide-react";
 import { Fragment, useState } from "react";
 import { ingestAll, ingestPlugin, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
@@ -44,6 +44,7 @@ export function PluginsPage() {
     <div>
       <PageHeader
         title="Plugins"
+        description="Registered plugins and their documentation sources."
         actions={
           <>
             <Button
@@ -80,6 +81,7 @@ export function PluginsPage() {
                 <TableHead className="w-8" />
                 <TableHead>Slug</TableHead>
                 <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Sources</TableHead>
                 <TableHead>GitHub</TableHead>
                 <TableHead>wp.org</TableHead>
@@ -103,13 +105,29 @@ export function PluginsPage() {
                     <TableCell className="font-mono text-[13px]">{p.slug}</TableCell>
                     <TableCell>{p.name}</TableCell>
                     <TableCell>
+                      <Badge variant={p.status === "active" ? "success" : "secondary"}>
+                        {p.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="secondary">{p.source_count}</Badge>
                     </TableCell>
-                    <TableCell className="font-mono text-[13px] text-muted-foreground">
-                      {p.github_repo ?? "—"}
+                    <TableCell className="text-[13px]">
+                      {p.github_repo ? (
+                        <RepoLink href={`https://github.com/${p.github_repo}`} label={p.github_repo} />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
-                    <TableCell className="font-mono text-[13px] text-muted-foreground">
-                      {p.wporg_slug ?? "—"}
+                    <TableCell className="text-[13px]">
+                      {p.wporg_slug ? (
+                        <RepoLink
+                          href={`https://wordpress.org/plugins/${p.wporg_slug}/`}
+                          label={p.wporg_slug}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -122,7 +140,7 @@ export function PluginsPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                  {expanded === p.slug && <SourcesRow slug={p.slug} colSpan={7} />}
+                  {expanded === p.slug && <SourcesRow slug={p.slug} colSpan={8} />}
                 </Fragment>
               ))}
             </TableBody>
@@ -132,5 +150,19 @@ export function PluginsPage() {
 
       {registering && <RegisterPluginModal onClose={() => setRegistering(false)} />}
     </div>
+  );
+}
+
+function RepoLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 font-mono text-primary hover:underline"
+    >
+      {label}
+      <ExternalLink className="size-3 opacity-60" />
+    </a>
   );
 }

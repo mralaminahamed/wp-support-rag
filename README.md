@@ -1,5 +1,8 @@
 # WP Plugin Support Desk RAG
 
+[![CI](https://github.com/mralaminahamed/wp-support-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/mralaminahamed/wp-support-rag/actions/workflows/ci.yml)
+[![Frontend](https://github.com/mralaminahamed/wp-support-rag/actions/workflows/frontend.yml/badge.svg)](https://github.com/mralaminahamed/wp-support-rag/actions/workflows/frontend.yml)
+
 **Author:** Al Amin Ahamed ([@mralaminahamed](https://github.com/mralaminahamed))
 
 A self-hosted Retrieval-Augmented Generation service that answers WordPress

@@ -52,6 +52,30 @@ jobs:
   test:
     name: test (pytest)
     runs-on: ubuntu-latest
+    # Service containers are unavailable under local `act`; the DB integration
+    # test self-skips there, so unit tests still run.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: wprag
+          POSTGRES_PASSWORD: wprag
+          POSTGRES_DB: wprag
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U wprag -d wprag"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6379:6379"
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      WPRAG_DATABASE_DSN: postgresql+asyncpg://wprag:wprag@localhost:5432/wprag
+      WPRAG_REDIS_DSN: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -60,6 +84,9 @@ jobs:
           version: ${{ env.UV_VERSION }}
       - name: Sync dependencies
         run: uv sync --frozen --extra dev
+      - name: Apply migrations
+        if: ${{ !env.ACT }}
+        run: uv run alembic upgrade head
       - name: pytest
         run: uv run pytest
       # Coverage upload is irrelevant under local `act`; skip it there.

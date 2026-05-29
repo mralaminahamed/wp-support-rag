@@ -114,7 +114,7 @@ class Settings(BaseSettings):
     # --- Generation (§2.5) ---
     anthropic_model: str = "claude-sonnet-4-6"
     openai_model: str = "gpt-4o-mini"
-    ollama_model: str = "llama3.1"
+    ollama_model: str = "llama3.2"
     llm_timeout_seconds: float = Field(default=60.0, gt=0.0)
     llm_max_retries: int = Field(default=3, ge=0)
     llm_max_output_tokens: int = Field(default=1024, ge=1)

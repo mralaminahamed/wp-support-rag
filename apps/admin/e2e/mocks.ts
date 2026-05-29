@@ -57,7 +57,7 @@ const LLM_CONFIG = {
   providers: [
     { name: "anthropic", default_model: "claude-sonnet-4-6", configured: true },
     { name: "openai", default_model: "gpt-4o-mini", configured: true },
-    { name: "ollama", default_model: "llama3.1", configured: true },
+    { name: "ollama", default_model: "llama3.2", configured: true },
   ],
 };
 

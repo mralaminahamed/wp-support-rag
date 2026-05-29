@@ -34,7 +34,7 @@ jobs:
     name: type-check, lint, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install pnpm
         uses: pnpm/action-setup@v4
       - name: Set up Node
@@ -55,7 +55,7 @@ jobs:
     name: e2e (admin, Playwright)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install pnpm
         uses: pnpm/action-setup@v4
       - name: Set up Node

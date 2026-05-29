@@ -14,9 +14,12 @@ test("runs a query and submits feedback", async ({ page }) => {
   await page.getByRole("button", { name: "Ask" }).click();
 
   await expect(page.getByText(/Theme location assignments are not copied/i)).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /swift-menu-duplicator\/#faq/i }),
-  ).toBeVisible();
+  const source = page.getByRole("link", { name: /FAQ/ });
+  await expect(source).toBeVisible();
+  await expect(source).toHaveAttribute(
+    "href",
+    "https://wordpress.org/plugins/swift-menu-duplicator/#faq",
+  );
 
   await page.getByRole("button", { name: "Yes" }).click();
   await expect(page.getByText(/Thanks for the feedback/i)).toBeVisible();

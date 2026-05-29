@@ -1,6 +1,6 @@
 // Playground: run a query (optionally streamed) and submit feedback. Author: Al Amin Ahamed.
 import { useQuery } from "@tanstack/react-query";
-import { Send, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, ExternalLink, Send, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
 import { listPlugins } from "@/api/admin";
 import { postFeedback, postQuery, streamQuery } from "@/api/query";
@@ -24,6 +24,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import type { SourceRef } from "@/types/api";
 
 const ROUTE = "__route__";
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 
 interface Result {
   query_id: string;
@@ -155,21 +163,35 @@ export function PlaygroundPage() {
 
             {result && result.sources.length > 0 && (
               <div className="mt-4">
-                <p className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                <p className="mb-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Sources
                 </p>
-                {result.sources.map((s) => (
-                  <a
-                    key={s.url}
-                    href={s.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block border-b py-1.5 text-sm text-primary hover:underline"
-                  >
-                    {s.cited && <span className="mr-1.5 text-success">✓</span>}
-                    {s.heading_path ? `${s.heading_path} — ${s.url}` : s.url}
-                  </a>
-                ))}
+                <ul className="divide-y">
+                  {result.sources.map((s) => (
+                    <li key={s.url}>
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={s.url}
+                        className="group flex items-center gap-2 py-1.5 text-sm"
+                      >
+                        {s.cited ? (
+                          <Check className="size-3.5 shrink-0 text-success" />
+                        ) : (
+                          <span className="size-3.5 shrink-0" />
+                        )}
+                        <span className="truncate text-foreground group-hover:text-primary group-hover:underline">
+                          {s.heading_path || hostOf(s.url)}
+                        </span>
+                        <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
+                          {hostOf(s.url)}
+                        </span>
+                        <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

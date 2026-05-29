@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 
+from app.api import routes_admin, routes_query
 from app.config import Settings, get_settings
 from app.db.engine import dispose_engine, get_sessionmaker
 from app.db.redis import close_redis, get_redis
@@ -128,6 +129,9 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
     )
+
+    app.include_router(routes_query.router)
+    app.include_router(routes_admin.router)
 
     @app.get("/health", response_model=HealthResponse, tags=["ops"])
     async def health() -> JSONResponse:

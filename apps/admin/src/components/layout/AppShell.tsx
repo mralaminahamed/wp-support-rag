@@ -43,7 +43,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-10 flex h-15 items-center gap-3 border-b border-border bg-background/80 px-6 backdrop-blur">
+        <header className="sticky top-0 z-10 flex h-15 items-center gap-3 border-b border-border bg-card/80 px-6 backdrop-blur">
           <span className="font-semibold md:hidden">Support RAG</span>
           <div className="flex-1" />
           <ConnectionBadge />

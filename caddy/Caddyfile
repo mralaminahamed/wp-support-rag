@@ -1,10 +1,26 @@
 # Caddy reverse proxy with automatic TLS (NFR-PT-1).
 # Author: Al Amin Ahamed.
 #
-# $DOMAIN is provided by docker-compose.prod.yml; Caddy provisions and renews a
-# Let's Encrypt certificate for it automatically and proxies to the API.
+# $DOMAIN serves the API (/api/*, /health) and the support widget (everything
+# else); admin.$DOMAIN serves the admin console. Caddy provisions and renews
+# Let's Encrypt certificates for both automatically.
 
 {$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy app:8000
+
+	# API and health checks go to the FastAPI service.
+	@api path /api/* /health
+	handle @api {
+		reverse_proxy app:8000
+	}
+
+	# Everything else is the static support widget.
+	handle {
+		reverse_proxy web:80
+	}
+}
+
+admin.{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy admin:80
 }

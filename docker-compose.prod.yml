@@ -88,6 +88,20 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  web:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./apps/web:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ./apps/admin
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: https://${DOMAIN:?set DOMAIN}
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     environment:
@@ -101,6 +115,8 @@ services:
       - caddyconfig:/config
     depends_on:
       - app
+      - web
+      - admin
     restart: unless-stopped
 
 volumes:

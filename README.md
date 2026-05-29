@@ -53,6 +53,11 @@ cd apps/api && uv run alembic upgrade head
 curl localhost:8000/health                # {"status":"ok",...}
 ```
 
+`docker compose up` runs all services: **api** (`:8000`), worker, beat, Postgres,
+Redis, the **widget** (`web`, `:8080`), and the **admin** console (`admin`, `:8081`).
+In production (`docker-compose.prod.yml`) Caddy serves the API + widget on
+`$DOMAIN` and the admin console on `admin.$DOMAIN`, all with automatic TLS.
+
 Set provider keys (for real generation) in `.env` (see `.env.example`):
 
 ```

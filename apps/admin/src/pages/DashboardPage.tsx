@@ -20,7 +20,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { getHealth, getMetrics, ingestAll, listPlugins } from "@/api/admin";
+import { getHealth, getMetrics, getRecentQueries, ingestAll, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import { ErrorState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
-import { pct } from "@/lib/format";
+import { pct, relativeTime } from "@/lib/format";
 import { extractErrorMessage } from "@/lib/queryClient";
 
 function Bar({ value, max }: { value: number; max: number }) {
@@ -46,6 +46,7 @@ export function DashboardPage() {
   const health = useQuery({ queryKey: ["health"], queryFn: getHealth, retry: false });
   const metrics = useQuery({ queryKey: ["metrics"], queryFn: () => getMetrics() });
   const plugins = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
+  const recent = useQuery({ queryKey: ["recent-queries"], queryFn: () => getRecentQueries(8) });
   const ingestEvery = useMutation({
     mutationFn: ingestAll,
     onSuccess: (d) => toast.ok(`Enqueued ${d.enqueued_sources} sources across ${d.plugins} plugins`),
@@ -234,6 +235,48 @@ export function DashboardPage() {
           </Card>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recent.isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-9" />
+              ))}
+            </div>
+          ) : recent.isError ? (
+            <ErrorState message={extractErrorMessage(recent.error)} />
+          ) : (recent.data?.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No queries yet — try one in the playground.
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {recent.data!.map((q) => (
+                <li key={q.id} className="flex items-center gap-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{q.query_text}</span>
+                  {q.plugin_slug && (
+                    <Badge variant="secondary" className="font-mono text-[11px]">
+                      {q.plugin_slug}
+                    </Badge>
+                  )}
+                  {q.degraded && <Badge variant="warning">degraded</Badge>}
+                  {q.cached && <Badge variant="accent">cached</Badge>}
+                  {q.latency_ms != null && (
+                    <span className="shrink-0 text-xs text-muted-foreground">{q.latency_ms} ms</span>
+                  )}
+                  <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
+                    {relativeTime(q.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

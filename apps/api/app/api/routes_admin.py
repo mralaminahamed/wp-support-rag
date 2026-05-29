@@ -31,11 +31,12 @@ from app.api.schemas import (
     OllamaModelsResponse,
     PluginRegistration,
     PluginSummary,
+    RecentQuery,
     SourceSummary,
 )
 from app.config import EmbeddingProvider, ProviderName, Settings
 from app.db.engine import get_session
-from app.db.models import Feedback, Query
+from app.db.models import Feedback, Plugin, Query
 from app.ingestion.registry import (
     PluginSpec,
     SourceSpec,
@@ -256,6 +257,42 @@ async def reset_embedding_config(
     """
     await clear_embedding_override(redis)
     return await _llm_config(redis, settings)
+
+
+@router.get("/queries", response_model=list[RecentQuery])
+async def recent_queries(
+    limit: int = 20, session: AsyncSession = Depends(get_session)
+) -> list[RecentQuery]:
+    """Return the most recently logged queries for the activity feed (FR-FB-1/3).
+
+    Args:
+        limit: Maximum rows to return (clamped to 1..100).
+        session: Database session.
+
+    Returns:
+        list[RecentQuery]: Recent queries, newest first, with the plugin slug.
+    """
+    capped = max(1, min(limit, 100))
+    stmt = (
+        select(Query, Plugin.slug)
+        .join(Plugin, Plugin.id == Query.plugin_id, isouter=True)
+        .order_by(Query.created_at.desc())
+        .limit(capped)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        RecentQuery(
+            id=query.id,
+            query_text=query.query_text,
+            plugin_slug=slug,
+            provider=query.provider,
+            cached=query.cached,
+            degraded=query.degraded,
+            latency_ms=query.latency_ms,
+            created_at=query.created_at.isoformat(),
+        )
+        for query, slug in rows
+    ]
 
 
 @router.get("/ollama/models", response_model=OllamaModelsResponse)

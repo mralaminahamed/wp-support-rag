@@ -258,6 +258,30 @@ class EmbeddingConfigUpdate(BaseModel):
     model: str | None = None
 
 
+class RecentQuery(BaseModel):
+    """A logged query for the admin activity feed (FR-FB-1/3).
+
+    Attributes:
+        id: The query id.
+        query_text: The user question.
+        plugin_slug: Resolved plugin slug, if any.
+        provider: Provider that served the answer.
+        cached: Whether the answer came from cache.
+        degraded: Whether fail-open degraded mode was used.
+        latency_ms: End-to-end latency in milliseconds, if recorded.
+        created_at: ISO timestamp of when the query was logged.
+    """
+
+    id: uuid.UUID
+    query_text: str
+    plugin_slug: str | None
+    provider: str | None
+    cached: bool
+    degraded: bool
+    latency_ms: int | None
+    created_at: str
+
+
 class OllamaModelsResponse(BaseModel):
     """Models available on the configured Ollama server (FR-GN-3).
 

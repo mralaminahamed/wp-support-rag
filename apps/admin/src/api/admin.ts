@@ -10,6 +10,7 @@ import type {
   OllamaModels,
   PluginRegistration,
   PluginSummary,
+  RecentQuery,
   SourceSummary,
 } from "@/types/api";
 import { apiClient } from "./client";
@@ -83,5 +84,10 @@ export async function resetEmbeddingConfig(): Promise<LLMConfig> {
 
 export async function getOllamaModels(): Promise<OllamaModels> {
   const res = await apiClient.get<OllamaModels>("/api/v1/admin/ollama/models");
+  return res.data;
+}
+
+export async function getRecentQueries(limit = 8): Promise<RecentQuery[]> {
+  const res = await apiClient.get<RecentQuery[]>("/api/v1/admin/queries", { params: { limit } });
   return res.data;
 }

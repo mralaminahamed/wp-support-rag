@@ -103,6 +103,23 @@ export async function mockApi(page: Page): Promise<void> {
 
   await page.route("**/api/v1/admin/metrics**", (route) => route.fulfill({ json: METRICS }));
 
+  await page.route("**/api/v1/admin/queries**", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "q1",
+          query_text: "How do I duplicate a menu?",
+          plugin_slug: "swift-menu-duplicator",
+          provider: "ollama",
+          cached: false,
+          degraded: false,
+          latency_ms: 540,
+          created_at: "2026-05-29T07:00:00Z",
+        },
+      ],
+    }),
+  );
+
   await page.route("**/api/v1/admin/plugins/*/sources", (route) =>
     route.fulfill({
       json: [

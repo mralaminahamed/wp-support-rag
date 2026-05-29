@@ -337,6 +337,23 @@ async def test_admin_ollama_models_reports_unreachable(_ready: None) -> None:
     assert body["models"] == []
 
 
+async def test_admin_recent_queries_returns_list(_ready: None) -> None:
+    """The recent-queries endpoint returns a bounded, newest-first list (FR-FB-3)."""
+    token = "secret-token"  # noqa: S105 - test-only token
+    app = create_app()
+    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
+    with TestClient(app) as tc:
+        response = tc.get(
+            "/api/v1/admin/queries?limit=5", headers={"Authorization": f"Bearer {token}"}
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert isinstance(body, list)
+    assert len(body) <= 5
+    for row in body:
+        assert {"id", "query_text", "plugin_slug", "cached", "degraded", "created_at"} <= row.keys()
+
+
 async def test_admin_llm_config_requires_bearer(_ready: None, client: TestClient) -> None:
     """The LLM-config endpoint rejects unauthenticated calls (FR-DL-4)."""
     assert client.get("/api/v1/admin/llm").status_code == 401

@@ -117,6 +117,17 @@ export interface OllamaModels {
   models: string[];
 }
 
+export interface RecentQuery {
+  id: string;
+  query_text: string;
+  plugin_slug: string | null;
+  provider: string | null;
+  cached: boolean;
+  degraded: boolean;
+  latency_ms: number | null;
+  created_at: string;
+}
+
 export interface QueryResponse {
   query_id: string;
   answer: string;

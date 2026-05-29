@@ -132,6 +132,39 @@ Health and dependency reachability:
 curl -sS "$API/health"   # status ok|degraded with per-dependency db/redis state
 ```
 
+## 5. Running tests against an Ollama dev DB
+
+The embedding **dimension is bound to the `chunks.embedding` column + HNSW
+index** (ADR-002). The DB-integration tests embed at `Settings.embedding_dimensions`
+and insert into that column, so the test settings and the database width must
+match. CI is consistent by construction: it runs on a fresh database, applies
+migrations under the default OpenAI config (`halfvec(3072)`), then runs `pytest`.
+
+Locally this can collide when the dev DB has been migrated to a local Ollama
+width (e.g. `nomic-embed-text` → `halfvec(768)`): `pytest` defaults to OpenAI
+(3072) and the integration tests fail with `asyncpg ... expected 768 dimensions,
+not 3072`. Two ways to run green locally:
+
+```bash
+cd apps/api
+
+# A) Match the tests to the Ollama dev DB (768):
+WPRAG_EMBEDDING_PROVIDER=ollama WPRAG_OLLAMA_EMBED_DIMENSIONS=768 \
+WPRAG_DATABASE_DSN=postgresql+asyncpg://wprag:wprag@localhost:5432/wprag \
+  pytest
+
+# B) Use a throwaway 3072 DB (CI-equivalent) and default settings:
+#    point WPRAG_DATABASE_DSN at a fresh database, `alembic upgrade head`, then pytest.
+```
+
+Unit/config tests that assert the OpenAI **defaults** (3072) will conversely
+fail if you force `WPRAG_EMBEDDING_PROVIDER=ollama` for the whole run — those are
+env-default assertions, not bugs. Run the full suite with defaults against a
+3072 DB, or scope the Ollama env to the integration modules only.
+
+> All external calls (LLM, embeddings, GitHub, WordPress.org) are mocked or
+> VCR-replayed — the suite never hits a live API.
+
 ## Common issues
 
 | Symptom | Likely cause | Action |
@@ -142,3 +175,4 @@ curl -sS "$API/health"   # status ok|degraded with per-dependency db/redis state
 | 429 on `/query` | per-IP rate limit hit | tune `WPRAG_RATE_LIMIT_MAX_REQUESTS` / `WPRAG_RATE_LIMIT_WINDOW_SECONDS` |
 | cost breaker refuses a call | projected cost over ceiling | raise `WPRAG_COST_CEILING_USD_PER_REQUEST` or shorten context |
 | HNSW index won't build | pgvector < 0.7.0 | set `WPRAG_DIMENSIONALITY_MODE=vector_1536` and re-migrate |
+| `pytest` fails `expected N dimensions, not M` | dev DB embedding width ≠ test settings | match settings to the DB width, or run against a fresh DB at the default width (see §5) |

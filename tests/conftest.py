@@ -80,6 +80,31 @@ class BoWEmbeddingClient:
         return vector
 
 
+class FakeProvider:
+    """In-memory LLM provider for generator tests (no live API calls)."""
+
+    name = "fake"
+
+    def __init__(self, text: str = "Answer.", error: Exception | None = None) -> None:
+        """Configure the canned answer text or an error to raise."""
+        self._text = text
+        self._error = error
+        self.calls = 0
+
+    async def complete(self, request: Any) -> Any:
+        """Return a canned completion, or raise the configured error."""
+        from app.llm.base import CompletionResult, TokenUsage
+
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
+        return CompletionResult(
+            text=self._text,
+            model=request.model,
+            usage=TokenUsage(input_tokens=10, output_tokens=20),
+        )
+
+
 def play(cassette_name: str) -> Any:
     """Return an offline cassette context allowing repeated playback.
 

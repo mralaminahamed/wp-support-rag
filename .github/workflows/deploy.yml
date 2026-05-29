@@ -5,9 +5,10 @@ name: Deploy
 # validate the build path without attempting a real deploy.
 # Author: Al Amin Ahamed.
 
+# Manual-only: a production deploy needs a configured host + secrets, so it does
+# not auto-run on every push. Trigger from the Actions tab (or `gh workflow run
+# Deploy`) once WPRAG_ADMIN_BEARER_TOKEN and the deploy target are configured.
 on:
-  push:
-    branches: [main]
   workflow_dispatch: {}
 
 concurrency:

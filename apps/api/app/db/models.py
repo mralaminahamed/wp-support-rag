@@ -41,12 +41,10 @@ from sqlalchemy.types import TypeEngine
 from app.config import get_settings
 
 _DIMENSIONS = get_settings().embedding_dimensions
-"""Embedding width resolved once from configuration (3072 or 1536)."""
+"""Embedding width resolved once from configuration (provider-dependent)."""
 
 HNSW_OPS = (
-    "halfvec_cosine_ops"
-    if get_settings().dimensionality_mode == "halfvec_3072"
-    else "vector_cosine_ops"
+    "halfvec_cosine_ops" if get_settings().embedding_uses_halfvec else "vector_cosine_ops"
 )
 """HNSW operator class matching the configured embedding storage type."""
 
@@ -68,14 +66,15 @@ FEEDBACK_RATINGS = ("helpful", "not_helpful")
 def embedding_type() -> TypeEngine[Any]:
     """Return the SQLAlchemy column type for chunk embeddings.
 
-    The choice follows ADR-002: full-fidelity ``halfvec(3072)`` by default, or
-    ``vector(1536)`` when configuration selects the pgvector < 0.7.0 fallback
-    (NFR-PT-2). The migration calls this so column and index agree on the type.
+    The choice follows ADR-002: full-fidelity ``halfvec`` by default (3072 for
+    OpenAI, the model's native width for Ollama), or ``vector(1536)`` when
+    configuration selects the pgvector < 0.7.0 fallback (NFR-PT-2). The migration
+    calls this so column and index agree on the type.
 
     Returns:
-        TypeEngine[Any]: ``HALFVEC(3072)`` or ``Vector(1536)`` per configuration.
+        TypeEngine[Any]: ``HALFVEC(dim)`` or ``Vector(1536)`` per configuration.
     """
-    if get_settings().dimensionality_mode == "halfvec_3072":
+    if get_settings().embedding_uses_halfvec:
         return cast("TypeEngine[Any]", HALFVEC(_DIMENSIONS))
     return cast("TypeEngine[Any]", Vector(_DIMENSIONS))
 

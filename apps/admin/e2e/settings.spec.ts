@@ -19,8 +19,17 @@ test("save settings shows a toast", async ({ page }) => {
 
 test("override generation provider shows a toast", async ({ page }) => {
   await expect(page.getByText("Generation", { exact: true })).toBeVisible();
-  await page.getByRole("combobox").click();
+  await page.getByRole("combobox").first().click();
   await page.getByRole("option", { name: /ollama/ }).click();
   await page.getByRole("button", { name: "Save" }).nth(1).click();
   await expect(page.getByText(/Generation set to ollama/i)).toBeVisible();
+});
+
+test("embedding width change is rejected with guidance", async ({ page }) => {
+  await expect(page.getByText("Embeddings", { exact: true })).toBeVisible();
+  // Embedding provider select is the second combobox.
+  await page.getByRole("combobox").nth(1).click();
+  await page.getByRole("option", { name: /ollama/ }).click();
+  await page.getByRole("button", { name: "Save" }).nth(2).click();
+  await expect(page.getByText(/migration/i).first()).toBeVisible();
 });

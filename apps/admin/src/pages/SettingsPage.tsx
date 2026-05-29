@@ -1,7 +1,14 @@
 // Settings: API connection + generation provider/model. Author: Al Amin Ahamed.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getHealth, getLlmConfig, resetLlmConfig, updateLlmConfig } from "@/api/admin";
+import {
+  getHealth,
+  getLlmConfig,
+  resetEmbeddingConfig,
+  resetLlmConfig,
+  updateEmbeddingConfig,
+  updateLlmConfig,
+} from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,9 +31,13 @@ import { extractErrorMessage } from "@/lib/queryClient";
 export function SettingsPage() {
   return (
     <div className="space-y-5">
-      <PageHeader title="Settings" description="API connection and generation provider." />
+      <PageHeader
+        title="Settings"
+        description="API connection, generation provider, and embeddings."
+      />
       <ConnectionCard />
       <GenerationCard />
+      <EmbeddingCard />
     </div>
   );
 }
@@ -202,6 +213,130 @@ function GenerationCard() {
                 variant="secondary"
                 onClick={() => reset.mutate()}
                 disabled={current!.source !== "override" || reset.isPending}
+              >
+                Reset to .env
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmbeddingCard() {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
+  const embedding = config.data?.embedding;
+
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
+
+  useEffect(() => {
+    if (embedding) {
+      setProvider(embedding.provider);
+      setModel(embedding.model);
+    }
+  }, [embedding]);
+
+  function onProvider(next: string) {
+    setProvider(next);
+    const info = embedding?.providers.find((p) => p.name === next);
+    if (info) setModel(info.default_model);
+  }
+
+  const save = useMutation({
+    mutationFn: () => updateEmbeddingConfig({ provider, model: model.trim() || null }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["llm-config"], data);
+      toast.ok(`Embeddings set to ${data.embedding.provider} · ${data.embedding.model}`);
+    },
+    onError: (e) => toast.err(extractErrorMessage(e)),
+  });
+
+  const reset = useMutation({
+    mutationFn: resetEmbeddingConfig,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["llm-config"], data);
+      setProvider(data.embedding.provider);
+      setModel(data.embedding.model);
+      toast.ok("Reverted embeddings to environment defaults.");
+    },
+    onError: (e) => toast.err(extractErrorMessage(e)),
+  });
+
+  const selected = embedding?.providers.find((p) => p.name === provider);
+  const dirty = embedding
+    ? provider !== embedding.provider || model.trim() !== embedding.model
+    : false;
+
+  return (
+    <Card className="max-w-xl">
+      <CardHeader>
+        <CardTitle>Embeddings</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {config.isLoading ? (
+          <Skeleton className="h-40 w-full" />
+        ) : config.isError || !embedding ? (
+          <ErrorState message={extractErrorMessage(config.error)} />
+        ) : (
+          <>
+            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Active</span>
+              <Badge variant="accent">{embedding.provider}</Badge>
+              <span className="font-mono text-[13px]">{embedding.model}</span>
+              <Badge variant="secondary">{embedding.dimensions} dims</Badge>
+              <Badge variant={embedding.source === "override" ? "warning" : "secondary"}>
+                {embedding.source === "override" ? "overridden" : "from .env"}
+              </Badge>
+            </div>
+
+            <Field
+              label="Provider"
+              hint="The vector width is bound to the index; switching width needs a migration + re-embed."
+            >
+              <Select value={provider} onValueChange={onProvider}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {embedding.providers.map((p) => (
+                    <SelectItem key={p.name} value={p.name}>
+                      {p.name} · {p.dimensions} dims
+                      {p.applicable ? "" : " — needs migration"}
+                      {p.configured ? "" : " — not configured"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field label="Model" hint={selected ? `Default: ${selected.default_model}` : undefined}>
+              <Input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={selected?.default_model}
+                className="font-mono text-[13px]"
+              />
+            </Field>
+
+            {selected && !selected.applicable && (
+              <p className="mb-3 text-sm text-warning">
+                {selected.dimensions} dims ≠ current {embedding.dimensions}. Set
+                WPRAG_EMBEDDING_PROVIDER, run migrations, and re-ingest to switch width.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+                {save.isPending ? "Saving…" : "Save"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => reset.mutate()}
+                disabled={embedding.source !== "override" || reset.isPending}
               >
                 Reset to .env
               </Button>

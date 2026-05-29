@@ -76,15 +76,37 @@ export interface LLMProviderInfo {
   configured: boolean;
 }
 
+export interface EmbeddingProviderInfo {
+  name: string;
+  default_model: string;
+  dimensions: number;
+  configured: boolean;
+  applicable: boolean;
+}
+
+export interface EmbeddingConfig {
+  provider: string;
+  model: string;
+  dimensions: number;
+  source: "override" | "env";
+  providers: EmbeddingProviderInfo[];
+}
+
 export interface LLMConfig {
   provider: string;
   model: string;
   source: "override" | "env";
   default_provider: string;
   providers: LLMProviderInfo[];
+  embedding: EmbeddingConfig;
 }
 
 export interface LLMConfigUpdate {
+  provider: string;
+  model?: string | null;
+}
+
+export interface EmbeddingConfigUpdate {
   provider: string;
   model?: string | null;
 }

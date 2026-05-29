@@ -18,6 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_redis_dep, get_settings_dep, require_admin
 from app.api.schemas import (
+    EmbeddingConfig,
+    EmbeddingConfigUpdate,
+    EmbeddingProviderInfo,
     IngestAllResponse,
     IngestTriggerResponse,
     LLMConfigResponse,
@@ -28,7 +31,7 @@ from app.api.schemas import (
     PluginSummary,
     SourceSummary,
 )
-from app.config import ProviderName, Settings
+from app.config import EmbeddingProvider, ProviderName, Settings
 from app.db.engine import get_session
 from app.db.models import Feedback, Query
 from app.ingestion.registry import (
@@ -40,11 +43,18 @@ from app.ingestion.registry import (
     load_plugin_spec,
 )
 from app.llm.runtime import (
+    EMBEDDING_PROVIDERS,
     PROVIDERS,
+    clear_embedding_override,
     clear_override,
+    embed_dims_for,
+    embed_model_for,
+    embedding_configured,
     env_model,
     is_configured,
     resolve,
+    resolve_embedding,
+    set_embedding_override,
     set_override,
 )
 
@@ -79,6 +89,8 @@ async def _llm_config(redis: Redis, settings: Settings) -> LLMConfigResponse:
         LLMConfigResponse: Active provider/model plus all selectable providers.
     """
     effective = await resolve(redis, settings)
+    embedding = await resolve_embedding(redis, settings)
+    column_dims = settings.embedding_dimensions
     return LLMConfigResponse(
         provider=effective.provider,
         model=effective.model,
@@ -92,6 +104,22 @@ async def _llm_config(redis: Redis, settings: Settings) -> LLMConfigResponse:
             )
             for name in PROVIDERS
         ],
+        embedding=EmbeddingConfig(
+            provider=embedding.provider,
+            model=embedding.model,
+            dimensions=embedding.dimensions,
+            source=embedding.source,
+            providers=[
+                EmbeddingProviderInfo(
+                    name=name,
+                    default_model=embed_model_for(settings, name),
+                    dimensions=embed_dims_for(settings, name),
+                    configured=embedding_configured(settings, name),
+                    applicable=embed_dims_for(settings, name) == column_dims,
+                )
+                for name in EMBEDDING_PROVIDERS
+            ],
+        ),
     )
 
 
@@ -161,6 +189,70 @@ async def reset_llm_config(
         LLMConfigResponse: The configuration after reverting to env defaults.
     """
     await clear_override(redis)
+    return await _llm_config(redis, settings)
+
+
+@router.put("/llm/embedding", response_model=LLMConfigResponse)
+async def set_embedding_config(
+    payload: EmbeddingConfigUpdate,
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> LLMConfigResponse:
+    """Override the active embedding provider/model at runtime (ADR-002).
+
+    Only same-width changes apply at runtime, since the embedding dimension is
+    bound to the ``chunks.embedding`` column and its HNSW index. A provider whose
+    model produces a different width is rejected with guidance to set the env and
+    migrate + re-embed.
+
+    Args:
+        payload: The embedding provider and optional model to activate.
+        redis: Redis client backing the embedding override.
+        settings: Application settings.
+
+    Returns:
+        LLMConfigResponse: The new effective configuration.
+
+    Raises:
+        HTTPException: 422 if the provider is unknown; 409 if applying it would
+            change the embedding dimension.
+    """
+    if payload.provider not in EMBEDDING_PROVIDERS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"unknown embedding provider: {payload.provider}",
+        )
+    provider: EmbeddingProvider = payload.provider
+    target_dims = embed_dims_for(settings, provider)
+    if target_dims != settings.embedding_dimensions:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"provider '{provider}' embeds at {target_dims} dims but the index is "
+                f"{settings.embedding_dimensions}; set WPRAG_EMBEDDING_PROVIDER, run "
+                "'alembic upgrade head', and re-ingest to change the embedding dimension"
+            ),
+        )
+    model = (payload.model or "").strip() or embed_model_for(settings, provider)
+    await set_embedding_override(redis, provider, model)
+    return await _llm_config(redis, settings)
+
+
+@router.delete("/llm/embedding", response_model=LLMConfigResponse)
+async def reset_embedding_config(
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> LLMConfigResponse:
+    """Clear any embedding override and revert to the env defaults (ADR-002).
+
+    Args:
+        redis: Redis client backing the embedding override.
+        settings: Application settings.
+
+    Returns:
+        LLMConfigResponse: The configuration after reverting to env defaults.
+    """
+    await clear_embedding_override(redis)
     return await _llm_config(redis, settings)
 
 

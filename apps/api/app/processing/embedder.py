@@ -15,6 +15,7 @@ import logging
 from collections.abc import Sequence
 from typing import Protocol, runtime_checkable
 
+import httpx
 from openai import AsyncOpenAI
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,15 +97,67 @@ class OpenAIEmbeddingClient:
         return [item.embedding for item in response.data]
 
 
+class OllamaEmbeddingClient:
+    """Embedding client backed by a local Ollama server (local-only mode).
+
+    Calls Ollama's ``/api/embed`` batch endpoint at the model's native
+    dimension. No API key is required; the dimension is fixed by the model and
+    must match the configured ``ollama_embed_dimensions`` (and the DB column).
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        """Initialise the client from configuration.
+
+        Args:
+            settings: Application settings supplying base URL, model, and timeout.
+        """
+        self._base_url = settings.ollama_base_url.rstrip("/")
+        self._model = settings.ollama_embed_model
+        self._timeout = settings.http_timeout_seconds
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        """Embed a batch via the Ollama embeddings API.
+
+        Args:
+            texts: Texts to embed.
+
+        Returns:
+            list[list[float]]: One embedding per text, in input order.
+
+        Raises:
+            EmbeddingUnavailable: On a transport error or non-2xx response from
+                the Ollama server.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(
+                    f"{self._base_url}/api/embed",
+                    json={"model": self._model, "input": texts},
+                )
+        except httpx.HTTPError as exc:
+            raise EmbeddingUnavailable(f"ollama embeddings unavailable: {exc}") from exc
+        if response.status_code != 200:
+            raise EmbeddingUnavailable(
+                f"ollama embeddings failed: HTTP {response.status_code} {response.text[:200]}"
+            )
+        embeddings = response.json().get("embeddings")
+        if not isinstance(embeddings, list) or len(embeddings) != len(texts):
+            raise EmbeddingUnavailable("ollama embeddings returned an unexpected payload")
+        return [[float(value) for value in vector] for vector in embeddings]
+
+
 def build_embedding_client(settings: Settings) -> EmbeddingClient:
-    """Construct the configured embedding client.
+    """Construct the embedding client for the configured provider.
 
     Args:
         settings: Application settings.
 
     Returns:
-        EmbeddingClient: The OpenAI-backed client.
+        EmbeddingClient: An Ollama- or OpenAI-backed client per
+        ``settings.embedding_provider``.
     """
+    if settings.embedding_provider == "ollama":
+        return OllamaEmbeddingClient(settings)
     return OpenAIEmbeddingClient(settings)
 
 

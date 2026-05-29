@@ -205,15 +205,65 @@ class LLMProviderInfo(BaseModel):
     configured: bool
 
 
-class LLMConfigResponse(BaseModel):
-    """The active generation provider/model and the available choices (FR-GN-3).
+class EmbeddingProviderInfo(BaseModel):
+    """A selectable embedding provider and its width (FR-GN-3, ADR-002).
 
     Attributes:
-        provider: The active provider name.
-        model: The active model id.
+        name: The provider name.
+        default_model: The embedding model configured for this provider.
+        dimensions: The vector width that model produces.
+        configured: Whether the provider has the credentials/endpoint it needs.
+        applicable: Whether it can be applied at runtime (same width as the live
+            DB column); a different width needs a migration and re-embed.
+    """
+
+    name: str
+    default_model: str
+    dimensions: int
+    configured: bool
+    applicable: bool
+
+
+class EmbeddingConfig(BaseModel):
+    """The active embedding provider/model and the available choices (ADR-002).
+
+    Attributes:
+        provider: The active embedding provider name.
+        model: The active embedding model id.
+        dimensions: The live vector width (bound to the DB column).
         source: ``"override"`` if set from the admin UI, else ``"env"``.
-        default_provider: The provider configured in the env file.
-        providers: All selectable providers with their env-default models.
+        providers: All embedding providers with their widths and applicability.
+    """
+
+    provider: str
+    model: str
+    dimensions: int
+    source: str
+    providers: list[EmbeddingProviderInfo]
+
+
+class EmbeddingConfigUpdate(BaseModel):
+    """Request to override the active embedding provider/model (ADR-002).
+
+    Attributes:
+        provider: The embedding provider to activate.
+        model: Optional model id; falls back to the provider's configured model.
+    """
+
+    provider: str
+    model: str | None = None
+
+
+class LLMConfigResponse(BaseModel):
+    """The active generation + embedding config and the available choices (FR-GN-3).
+
+    Attributes:
+        provider: The active generation provider name.
+        model: The active generation model id.
+        source: ``"override"`` if set from the admin UI, else ``"env"``.
+        default_provider: The generation provider configured in the env file.
+        providers: All selectable generation providers with their env-default models.
+        embedding: The active embedding configuration and choices.
     """
 
     provider: str
@@ -221,6 +271,7 @@ class LLMConfigResponse(BaseModel):
     source: str
     default_provider: str
     providers: list[LLMProviderInfo]
+    embedding: EmbeddingConfig
 
 
 class LLMConfigUpdate(BaseModel):

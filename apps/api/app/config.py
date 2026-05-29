@@ -26,6 +26,12 @@ DimensionalityMode = Literal["halfvec_3072", "vector_1536"]
 """Embedding storage mode. ``halfvec_3072`` is the default per ADR-002; ``vector_1536``
 is the pgvector < 0.7.0 fallback selected by configuration (NFR-PT-2)."""
 
+EmbeddingProvider = Literal["openai", "ollama"]
+"""Embedding backend. ``openai`` is the ADR-002 default (text-embedding-3-large);
+``ollama`` enables fully-local embeddings at the model's native dimension. The
+dimension is bound to the DB column + HNSW index, so changing this requires a
+migration and a full re-embed — it is not a runtime toggle."""
+
 Environment = Literal["development", "staging", "production"]
 """Deployment environment, used to gate environment-specific behaviour."""
 
@@ -132,9 +138,12 @@ class Settings(BaseSettings):
     ingest_polite_delay_seconds: float = Field(default=1.0, ge=0.0)
 
     # --- Embedding (§2.3, ADR-002) ---
+    embedding_provider: EmbeddingProvider = "openai"
     embed_model: str = "text-embedding-3-large"
     embed_batch_size: int = Field(default=100, ge=1, le=100)
     dimensionality_mode: DimensionalityMode = "halfvec_3072"
+    ollama_embed_model: str = "nomic-embed-text"
+    ollama_embed_dimensions: int = Field(default=768, ge=1, le=4000)
 
     # --- Chunking (§2.3) ---
     chunk_target_tokens: int = Field(default=512, ge=1)
@@ -169,12 +178,41 @@ class Settings(BaseSettings):
 
     @property
     def embedding_dimensions(self) -> int:
-        """Number of embedding dimensions implied by :attr:`dimensionality_mode`.
+        """Embedding width for the active embedding provider.
+
+        For Ollama this is the model's native dimension; for OpenAI it follows
+        :attr:`dimensionality_mode` (ADR-002).
 
         Returns:
-            int: 3072 for ``halfvec_3072``, 1536 for ``vector_1536``.
+            int: ``ollama_embed_dimensions`` for Ollama, else 3072 for
+            ``halfvec_3072`` or 1536 for ``vector_1536``.
         """
+        if self.embedding_provider == "ollama":
+            return self.ollama_embed_dimensions
         return 3072 if self.dimensionality_mode == "halfvec_3072" else 1536
+
+    @property
+    def embedding_uses_halfvec(self) -> bool:
+        """Whether the embedding column uses ``halfvec`` storage.
+
+        Ollama embeddings always use ``halfvec`` (cosine); OpenAI uses ``halfvec``
+        only in the default ``halfvec_3072`` mode (ADR-002).
+
+        Returns:
+            bool: True for ``halfvec`` storage, False for the ``vector(1536)`` fallback.
+        """
+        if self.embedding_provider == "ollama":
+            return True
+        return self.dimensionality_mode == "halfvec_3072"
+
+    @property
+    def active_embed_model(self) -> str:
+        """Model id used for embeddings by the active provider.
+
+        Returns:
+            str: ``ollama_embed_model`` for Ollama, else ``embed_model``.
+        """
+        return self.ollama_embed_model if self.embedding_provider == "ollama" else self.embed_model
 
     @model_validator(mode="after")
     def _validate_relationships(self) -> Settings:

@@ -279,6 +279,44 @@ async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
         assert reset["provider"] == "anthropic"
 
 
+async def test_admin_embedding_config_guards_dimension_change(_ready: None) -> None:
+    """Embedding override applies same-width only; a width change is a 409 (ADR-002)."""
+    token = "secret-token"  # noqa: S105 - test-only token
+    app = create_app()
+    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
+    headers = {"Authorization": f"Bearer {token}"}
+    with TestClient(app) as tc:
+        body = tc.get("/api/v1/admin/llm", headers=headers).json()
+        emb = body["embedding"]
+        # Default: OpenAI text-embedding-3-large at 3072 dims.
+        assert emb["provider"] == "openai"
+        assert emb["dimensions"] == 3072
+        names = {p["name"]: p for p in emb["providers"]}
+        assert names["ollama"]["dimensions"] == 768
+        assert names["ollama"]["applicable"] is False  # 768 != 3072 column
+        assert names["openai"]["applicable"] is True
+
+        # Switching to Ollama (768) is rejected: it would change the index width.
+        conflict = tc.put(
+            "/api/v1/admin/llm/embedding", headers=headers, json={"provider": "ollama"}
+        )
+        assert conflict.status_code == 409
+        assert "re-ingest" in conflict.json()["detail"]
+
+        # A same-width model override is accepted.
+        ok = tc.put(
+            "/api/v1/admin/llm/embedding",
+            headers=headers,
+            json={"provider": "openai", "model": "text-embedding-3-small"},
+        )
+        assert ok.status_code == 200
+        assert ok.json()["embedding"]["source"] == "override"
+        assert ok.json()["embedding"]["model"] == "text-embedding-3-small"
+
+        reset = tc.delete("/api/v1/admin/llm/embedding", headers=headers).json()
+        assert reset["embedding"]["source"] == "env"
+
+
 async def test_admin_llm_config_requires_bearer(_ready: None, client: TestClient) -> None:
     """The LLM-config endpoint rejects unauthenticated calls (FR-DL-4)."""
     assert client.get("/api/v1/admin/llm").status_code == 401

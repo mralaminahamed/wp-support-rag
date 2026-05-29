@@ -1,6 +1,7 @@
 // Admin + health API calls (app /api/v1/admin/*, /health). Author: Al Amin Ahamed.
 import type {
   Health,
+  EmbeddingConfigUpdate,
   IngestAllResponse,
   IngestTriggerResponse,
   LLMConfig,
@@ -66,5 +67,15 @@ export async function updateLlmConfig(payload: LLMConfigUpdate): Promise<LLMConf
 
 export async function resetLlmConfig(): Promise<LLMConfig> {
   const res = await apiClient.delete<LLMConfig>("/api/v1/admin/llm");
+  return res.data;
+}
+
+export async function updateEmbeddingConfig(payload: EmbeddingConfigUpdate): Promise<LLMConfig> {
+  const res = await apiClient.put<LLMConfig>("/api/v1/admin/llm/embedding", payload);
+  return res.data;
+}
+
+export async function resetEmbeddingConfig(): Promise<LLMConfig> {
+  const res = await apiClient.delete<LLMConfig>("/api/v1/admin/llm/embedding");
   return res.data;
 }

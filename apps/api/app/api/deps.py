@@ -19,7 +19,7 @@ from app.config import Settings, get_settings
 from app.db.redis import get_redis
 from app.llm.base import LLMProvider
 from app.llm.factory import build_provider
-from app.llm.runtime import resolve
+from app.llm.runtime import resolve, resolve_embedding
 from app.processing.embedder import EmbeddingClient, build_embedding_client
 
 
@@ -41,13 +41,30 @@ def get_redis_dep() -> Redis:
     return get_redis()
 
 
-def get_embedding_client() -> EmbeddingClient:
-    """Return the configured embedding client (overridable in tests).
+async def get_embedding_client(
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+) -> EmbeddingClient:
+    """Return the active embedding client, honouring a same-width override.
+
+    The provider/model default to the env configuration and may be overridden at
+    runtime (see ``app.llm.runtime.resolve_embedding``) only within the live
+    column dimension. Overridable in tests via ``app.dependency_overrides``.
+
+    Args:
+        redis: Redis client backing the embedding override.
+        settings: Application settings supplying the embedding defaults.
 
     Returns:
-        EmbeddingClient: The embedding client.
+        EmbeddingClient: The resolved embedding client.
     """
-    return build_embedding_client(get_settings())
+    config = await resolve_embedding(redis, settings)
+    update: dict[str, str] = {"embedding_provider": config.provider}
+    if config.provider == "ollama":
+        update["ollama_embed_model"] = config.model
+    else:
+        update["embed_model"] = config.model
+    return build_embedding_client(settings.model_copy(update=update))
 
 
 async def get_provider(

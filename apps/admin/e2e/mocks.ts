@@ -49,6 +49,29 @@ const QUERY_RESPONSE = {
   latency_ms: 540,
 };
 
+const EMBEDDING_CONFIG = {
+  provider: "openai",
+  model: "text-embedding-3-large",
+  dimensions: 3072,
+  source: "env",
+  providers: [
+    {
+      name: "openai",
+      default_model: "text-embedding-3-large",
+      dimensions: 3072,
+      configured: true,
+      applicable: true,
+    },
+    {
+      name: "ollama",
+      default_model: "nomic-embed-text",
+      dimensions: 768,
+      configured: true,
+      applicable: false,
+    },
+  ],
+};
+
 const LLM_CONFIG = {
   provider: "anthropic",
   model: "claude-sonnet-4-6",
@@ -59,6 +82,7 @@ const LLM_CONFIG = {
     { name: "openai", default_model: "gpt-4o-mini", configured: true },
     { name: "ollama", default_model: "llama3.2", configured: true },
   ],
+  embedding: EMBEDDING_CONFIG,
 };
 
 /** Register all API mocks. Specific routes are added last so they win. */
@@ -113,6 +137,33 @@ export async function mockApi(page: Page): Promise<void> {
           provider: body.provider,
           model: body.model || fallback || LLM_CONFIG.model,
           source: "override",
+        },
+      });
+    } else if (method === "DELETE") {
+      route.fulfill({ json: LLM_CONFIG });
+    } else {
+      route.fulfill({ json: LLM_CONFIG });
+    }
+  });
+
+  await page.route("**/api/v1/admin/llm/embedding", (route) => {
+    const method = route.request().method();
+    if (method === "PUT") {
+      const body = route.request().postDataJSON() as { provider: string; model?: string };
+      const info = EMBEDDING_CONFIG.providers.find((p) => p.name === body.provider);
+      if (info && !info.applicable) {
+        route.fulfill({ status: 409, json: { detail: "needs migration + re-ingest" } });
+        return;
+      }
+      route.fulfill({
+        json: {
+          ...LLM_CONFIG,
+          embedding: {
+            ...EMBEDDING_CONFIG,
+            provider: body.provider,
+            model: body.model || info?.default_model || EMBEDDING_CONFIG.model,
+            source: "override",
+          },
         },
       });
     } else if (method === "DELETE") {

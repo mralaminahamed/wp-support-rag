@@ -47,6 +47,8 @@ const QUERY_RESPONSE = {
   declined: false,
   plugin_slug: "swift-menu-duplicator",
   latency_ms: 540,
+  provider: "ollama",
+  model: "llama3.2",
 };
 
 const EMBEDDING_CONFIG = {

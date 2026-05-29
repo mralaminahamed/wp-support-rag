@@ -1,6 +1,6 @@
 // Playground: run a query (optionally streamed) and submit feedback. Author: Al Amin Ahamed.
 import { useQuery } from "@tanstack/react-query";
-import { Check, ExternalLink, Send, ThumbsDown, ThumbsUp } from "lucide-react";
+import { Check, Copy, ExternalLink, Send, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
 import { listPlugins } from "@/api/admin";
 import { postFeedback, postQuery, streamQuery } from "@/api/query";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
+import { Markdown } from "@/components/ui/markdown";
 import { Field } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,6 +34,10 @@ function hostOf(url: string): string {
   }
 }
 
+function copyAnswer(text: string): void {
+  void navigator.clipboard?.writeText(text);
+}
+
 interface Result {
   query_id: string;
   answer: string;
@@ -42,6 +47,8 @@ interface Result {
   degraded: boolean;
   declined: boolean;
   latency_ms: number;
+  provider: string;
+  model: string;
 }
 
 export function PlaygroundPage() {
@@ -144,46 +151,70 @@ export function PlaygroundPage() {
         <Card>
           <CardContent>
             {result && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
                 {result.declined && <Badge variant="warning">declined</Badge>}
                 {result.degraded && <Badge variant="warning">degraded</Badge>}
                 {result.cached && <Badge variant="accent">cached</Badge>}
+                <Badge variant="secondary">
+                  {result.provider} · {result.model}
+                </Badge>
                 <Badge variant="secondary">{result.latency_ms} ms</Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => copyAnswer(result.answer)}
+                >
+                  <Copy /> Copy
+                </Button>
               </div>
             )}
-            <p className="leading-relaxed whitespace-pre-wrap">
-              {result ? (
-                result.answer
-              ) : live ? (
-                live
-              ) : (
-                <span className="text-muted-foreground">Generating…</span>
-              )}
-            </p>
+
+            {result ? (
+              <Markdown>{result.answer}</Markdown>
+            ) : live ? (
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {live}
+                <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary align-text-bottom" />
+              </p>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Spinner /> Generating…
+              </p>
+            )}
 
             {result && result.sources.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Sources
+              <div className="mt-5">
+                <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Sources · {result.sources.filter((s) => s.cited).length} cited
                 </p>
-                <ul className="divide-y">
-                  {result.sources.map((s) => (
+                <ol className="space-y-1.5">
+                  {result.sources.map((s, i) => (
                     <li key={s.url}>
                       <a
                         href={s.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         title={s.url}
-                        className="group flex items-center gap-2 py-1.5 text-sm"
+                        className="group flex items-center gap-2.5 rounded-md border bg-muted/30 px-3 py-2 text-sm transition hover:border-primary/40 hover:bg-muted"
                       >
-                        {s.cited ? (
-                          <Check className="size-3.5 shrink-0 text-success" />
-                        ) : (
-                          <span className="size-3.5 shrink-0" />
-                        )}
-                        <span className="truncate text-foreground group-hover:text-primary group-hover:underline">
+                        <span
+                          className={
+                            s.cited
+                              ? "flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15 text-[11px] font-semibold text-success"
+                              : "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-muted-foreground"
+                          }
+                        >
+                          {i + 1}
+                        </span>
+                        <span className="truncate text-foreground group-hover:text-primary">
                           {s.heading_path || hostOf(s.url)}
                         </span>
+                        {s.cited && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-success">
+                            <Check className="size-3" /> cited
+                          </span>
+                        )}
                         <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
                           {hostOf(s.url)}
                         </span>
@@ -191,12 +222,12 @@ export function PlaygroundPage() {
                       </a>
                     </li>
                   ))}
-                </ul>
+                </ol>
               </div>
             )}
 
             {result && !result.declined && (
-              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="mt-5 flex items-center gap-2 border-t pt-4 text-sm text-muted-foreground">
                 <span>Was this helpful?</span>
                 <Button
                   variant="secondary"
@@ -214,6 +245,7 @@ export function PlaygroundPage() {
                 >
                   <ThumbsDown /> No
                 </Button>
+                {feedbackSent && <span className="text-success">Thanks!</span>}
               </div>
             )}
           </CardContent>

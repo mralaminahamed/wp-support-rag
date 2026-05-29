@@ -173,6 +173,8 @@ async def query(
         declined=generation.declined,
         plugin_slug=payload.plugin_slug,
         latency_ms=latency_ms,
+        provider=provider.name,
+        model=model,
     )
 
 
@@ -277,6 +279,8 @@ async def query_stream(
                 "degraded": final.degraded,
                 "declined": final.declined,
                 "latency_ms": latency_ms,
+                "provider": provider.name,
+                "model": model,
             },
         )
 

@@ -54,6 +54,8 @@ class QueryResponse(BaseModel):
         declined: Whether the decline path was taken.
         plugin_slug: The plugin filter that was applied, if any.
         latency_ms: End-to-end latency in milliseconds.
+        provider: Generation provider that produced the answer.
+        model: Generation model id that produced the answer.
     """
 
     query_id: uuid.UUID
@@ -65,6 +67,8 @@ class QueryResponse(BaseModel):
     declined: bool
     plugin_slug: str | None
     latency_ms: int
+    provider: str
+    model: str
 
 
 class FeedbackRequest(BaseModel):

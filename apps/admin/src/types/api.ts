@@ -121,4 +121,6 @@ export interface QueryResponse {
   declined: boolean;
   plugin_slug: string | null;
   latency_ms: number;
+  provider: string;
+  model: string;
 }

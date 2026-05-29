@@ -29,6 +29,8 @@ export interface StreamDone {
   degraded: boolean;
   declined: boolean;
   latency_ms: number;
+  provider: string;
+  model: string;
 }
 
 /**

@@ -68,8 +68,9 @@ class Settings(BaseSettings):
         ef_search: HNSW query-time search breadth (recall/latency trade-off).
         vector_weight: Relative weight of the vector list during fusion.
         lexical_weight: Relative weight of the lexical list during fusion.
-        similarity_threshold: Minimum fused score for a chunk to survive filtering.
+        similarity_threshold: Minimum vector similarity for a vector-only chunk to survive.
         rerank_enabled: Whether the optional rerank stage runs.
+        route_max_plugins: Max plugins a slug-less query routes to (ADR-004).
         response_cache_ttl_seconds: Default TTL for cached answers.
         centroid_cache_ttl_seconds: TTL for cached per-plugin centroid embeddings.
         cost_ceiling_usd_per_request: Per-request projected-cost ceiling (FR-GN-5).
@@ -131,6 +132,7 @@ class Settings(BaseSettings):
     lexical_weight: float = Field(default=1.0, ge=0.0)
     similarity_threshold: float = Field(default=0.15, ge=0.0, le=1.0)
     rerank_enabled: bool = False
+    route_max_plugins: int = Field(default=2, ge=1)
 
     # --- Caching (§2.5) ---
     response_cache_ttl_seconds: int = Field(default=86_400, ge=0)

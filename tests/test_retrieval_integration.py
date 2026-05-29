@@ -9,10 +9,8 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
-import json
 import uuid
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 from app.config import Settings, get_settings
 from app.db.engine import get_sessionmaker
@@ -26,7 +24,6 @@ from app.rag.service import retrieve
 from tests.conftest import BoWEmbeddingClient, play
 
 SLUG = "swift-menu-duplicator"
-GOLDEN = Path(__file__).resolve().parents[1] / "eval/dataset/golden.jsonl"
 
 
 def _embedder() -> BoWEmbeddingClient:
@@ -68,26 +65,33 @@ async def _ingest_smd() -> uuid.UUID:
     return plugin_id
 
 
+# Expectations tied to the Swift Menu Duplicator cassette corpus (FAQ + changelog).
+# (The eval golden dataset, exercised end to end in tests/test_eval.py, uses its
+# own seeded corpus; this test pins the retrieval contract against the cassette.)
+_CASSETTE_EXPECTATIONS = [
+    ("Does duplicating copy theme location assignments?", ["swift-menu-duplicator", "#faq"]),
+    (
+        "Are sub-menu items and parent-child relationships preserved?",
+        ["swift-menu-duplicator", "#faq"],
+    ),
+    (
+        "What changed about the WP-CLI command in the latest release?",
+        ["swift-menu-duplicator", "#developers"],
+    ),
+]
+
+
 async def test_golden_expected_source_in_topk(clean_plugins: None) -> None:
-    """Each answerable golden question retrieves its expected source in top-k (FR-QR-5)."""
+    """Each question retrieves its expected source in top-k from the corpus (FR-QR-5)."""
     await _ingest_smd()
     client = _embedder()
-    records = [
-        json.loads(line)
-        for line in GOLDEN.read_text().splitlines()
-        if line.strip() and json.loads(line)["expected_source_substrings"]
-    ]
-    assert records
 
     async with get_sessionmaker()() as session:
-        for record in records:
-            result = await retrieve(
-                session, get_redis(), client, record["question"], plugin_slug=record["plugin_slug"]
-            )
-            substrings = record["expected_source_substrings"]
+        for question, substrings in _CASSETTE_EXPECTATIONS:
+            result = await retrieve(session, get_redis(), client, question, plugin_slug=SLUG)
             assert any(
                 all(sub in chunk.source_url for sub in substrings) for chunk in result.chunks
-            ), f"{record['id']}: expected {substrings} not in top-k"
+            ), f"{question!r}: expected {substrings} not in top-k"
 
 
 async def test_routing_selects_correct_plugin(clean_plugins: None) -> None:

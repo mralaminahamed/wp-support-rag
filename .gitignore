@@ -29,3 +29,6 @@ htmlcov/
 # Project docs / agent context (kept out of version control)
 docs/
 CLAUDE.md
+
+# Eval run artifacts (generated)
+eval/runs/

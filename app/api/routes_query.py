@@ -10,10 +10,13 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from decimal import Decimal
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,11 +40,25 @@ from app.db.models import Feedback, Query
 from app.llm.base import LLMProvider
 from app.llm.circuit_breaker import CostCircuitBreaker
 from app.processing.embedder import EmbeddingClient
-from app.rag.generator import generate
+from app.prompts.registry import get_registry
+from app.rag.generator import StreamEvent, generate, generate_stream
 from app.rag.retriever import RetrievedChunk
 from app.rag.service import retrieve
 
 router = APIRouter(prefix="/api/v1", tags=["query"])
+
+
+def _sse(event: str, data: dict[str, object]) -> str:
+    """Format a Server-Sent Events frame.
+
+    Args:
+        event: The SSE event name.
+        data: JSON-serialisable payload.
+
+    Returns:
+        str: The encoded SSE frame.
+    """
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
 def _sources(chunks: list[RetrievedChunk], citations: set[str]) -> list[SourceRef]:
@@ -147,6 +164,106 @@ async def query(
         plugin_slug=payload.plugin_slug,
         latency_ms=latency_ms,
     )
+
+
+@router.post("/query/stream")
+async def query_stream(
+    payload: QueryRequest,
+    session: AsyncSession = Depends(get_session),
+    redis: Redis = Depends(get_redis_dep),
+    settings: Settings = Depends(get_settings_dep),
+    embedder: EmbeddingClient = Depends(get_embedding_client),
+    provider: LLMProvider = Depends(get_provider),
+    ip_hash: str = Depends(rate_limit),
+) -> StreamingResponse:
+    """Stream a cited answer as Server-Sent Events (FR-DL-3).
+
+    Emits ``token`` events as the answer is generated and a closing ``done``
+    event carrying the citation-validated answer, sources, and the logged query
+    id. The query is persisted after the stream completes (FR-FB-1).
+
+    Args:
+        payload: The query request.
+        session: Database session.
+        redis: Redis client.
+        settings: Application settings.
+        embedder: Embedding client.
+        provider: LLM provider.
+        ip_hash: Hashed caller IP from the rate limiter (NFR-SC-5).
+
+    Returns:
+        StreamingResponse: A ``text/event-stream`` response.
+    """
+    start = perf_counter()
+    result = await retrieve(
+        session,
+        redis,
+        embedder,
+        payload.question,
+        plugin_slug=payload.plugin_slug,
+        settings=settings,
+    )
+
+    async def event_source() -> AsyncIterator[str]:
+        final: StreamEvent | None = None
+        async for event in generate_stream(
+            redis, provider, payload.question, result.chunks, settings=settings
+        ):
+            if event.type == "token":
+                yield _sse("token", {"text": event.text})
+            else:
+                final = event
+        assert final is not None
+        latency_ms = int((perf_counter() - start) * 1000)
+
+        plugin_id = None
+        if result.plugin_ids:
+            plugin_id = result.plugin_ids[0]
+        elif result.chunks:
+            plugin_id = result.chunks[0].plugin_id
+        cost = None
+        if final.usage is not None:
+            cost = Decimal(
+                str(
+                    CostCircuitBreaker(settings).estimate_cost(
+                        final.usage.input_tokens, final.usage.output_tokens
+                    )
+                )
+            )
+        record = Query(
+            plugin_id=plugin_id,
+            query_text=payload.question,
+            retrieved_chunk_ids=[chunk.chunk_id for chunk in result.chunks],
+            response_text=final.answer,
+            provider=provider.name,
+            prompt_version=get_registry().active("support_answer").version,
+            tokens_in=final.usage.input_tokens if final.usage else None,
+            tokens_out=final.usage.output_tokens if final.usage else None,
+            cost_usd=cost,
+            cached=final.cached,
+            degraded=final.degraded,
+            latency_ms=latency_ms,
+            ip_hash=ip_hash,
+        )
+        session.add(record)
+        await session.commit()
+
+        citations = set(final.citations)
+        yield _sse(
+            "done",
+            {
+                "query_id": str(record.id),
+                "answer": final.answer or "",
+                "citations": final.citations,
+                "sources": [s.model_dump() for s in _sources(result.chunks, citations)],
+                "cached": final.cached,
+                "degraded": final.degraded,
+                "declined": final.declined,
+                "latency_ms": latency_ms,
+            },
+        )
+
+    return StreamingResponse(event_source(), media_type="text/event-stream")
 
 
 @router.post("/feedback", response_model=FeedbackResponse)

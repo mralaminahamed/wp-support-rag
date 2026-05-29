@@ -9,18 +9,27 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
-from app.api.schemas import IngestTriggerResponse, MetricsResponse, PluginRegistration
+from app.api.schemas import (
+    IngestTriggerResponse,
+    MetricsResponse,
+    PluginRegistration,
+    PluginSummary,
+    SourceSummary,
+)
 from app.db.engine import get_session
 from app.db.models import Feedback, Query
 from app.ingestion.registry import (
     PluginSpec,
     SourceSpec,
     get_plugin_by_slug,
+    list_plugins,
     list_sources,
     load_plugin_spec,
 )
@@ -70,6 +79,67 @@ async def register_plugin(
     return {"slug": plugin.slug, "id": str(plugin.id)}
 
 
+@router.get("/plugins", response_model=list[PluginSummary])
+async def list_registered_plugins(
+    session: AsyncSession = Depends(get_session),
+) -> list[PluginSummary]:
+    """List registered plugins with their source counts (FR-PM-1).
+
+    Args:
+        session: Database session.
+
+    Returns:
+        list[PluginSummary]: One summary per plugin.
+    """
+    plugins = await list_plugins(session)
+    summaries: list[PluginSummary] = []
+    for plugin in plugins:
+        sources = await list_sources(session, plugin.id)
+        summaries.append(
+            PluginSummary(
+                slug=plugin.slug,
+                name=plugin.name,
+                status=plugin.status,
+                wporg_slug=plugin.wporg_slug,
+                github_repo=plugin.github_repo,
+                source_count=len(sources),
+            )
+        )
+    return summaries
+
+
+@router.get("/plugins/{plugin_slug}/sources", response_model=list[SourceSummary])
+async def list_plugin_sources(
+    plugin_slug: str, session: AsyncSession = Depends(get_session)
+) -> list[SourceSummary]:
+    """List a plugin's sources and their ingestion state (FR-PM-2/4).
+
+    Args:
+        plugin_slug: The plugin to inspect.
+        session: Database session.
+
+    Returns:
+        list[SourceSummary]: The plugin's sources.
+
+    Raises:
+        HTTPException: 404 if the plugin is unknown.
+    """
+    plugin = await get_plugin_by_slug(session, plugin_slug)
+    if plugin is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
+    sources = await list_sources(session, plugin.id)
+    return [
+        SourceSummary(
+            source_type=source.source_type,
+            enabled=source.enabled,
+            last_ingested_at=source.last_ingested_at.isoformat()
+            if source.last_ingested_at
+            else None,
+        )
+        for source in sources
+    ]
+
+
 @router.post("/ingest/{plugin_slug}", response_model=IngestTriggerResponse)
 async def trigger_ingest(
     plugin_slug: str, session: AsyncSession = Depends(get_session)
@@ -98,17 +168,33 @@ async def trigger_ingest(
 
 
 @router.get("/metrics", response_model=MetricsResponse)
-async def metrics(session: AsyncSession = Depends(get_session)) -> MetricsResponse:
-    """Return aggregate operational metrics (FR-FB-3).
+async def metrics(
+    plugin_slug: str | None = None, session: AsyncSession = Depends(get_session)
+) -> MetricsResponse:
+    """Return aggregate operational metrics, optionally per plugin (FR-FB-3).
 
     Args:
+        plugin_slug: Optional plugin filter; aggregates across all plugins when omitted.
         session: Database session.
 
     Returns:
         MetricsResponse: Deflection, helpful, cache-hit, degraded rates, mean
         cost, and p95 latency.
+
+    Raises:
+        HTTPException: 404 if a given plugin slug is unknown.
     """
-    total = (await session.execute(select(func.count()).select_from(Query))).scalar_one()
+    plugin_id = None
+    if plugin_slug is not None:
+        plugin = await get_plugin_by_slug(session, plugin_slug)
+        if plugin is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
+        plugin_id = plugin.id
+
+    def scoped(stmt: Select[Any]) -> Select[Any]:
+        return stmt.where(Query.plugin_id == plugin_id) if plugin_id is not None else stmt
+
+    total = (await session.execute(scoped(select(func.count()).select_from(Query)))).scalar_one()
     if total == 0:
         return MetricsResponse(
             total_queries=0,
@@ -121,23 +207,28 @@ async def metrics(session: AsyncSession = Depends(get_session)) -> MetricsRespon
         )
 
     cached = (
-        await session.execute(select(func.count()).where(Query.cached.is_(True)))
+        await session.execute(scoped(select(func.count()).where(Query.cached.is_(True))))
     ).scalar_one()
     degraded = (
-        await session.execute(select(func.count()).where(Query.degraded.is_(True)))
+        await session.execute(scoped(select(func.count()).where(Query.degraded.is_(True))))
     ).scalar_one()
-    mean_cost = (await session.execute(select(func.avg(Query.cost_usd)))).scalar_one()
+    mean_cost = (await session.execute(scoped(select(func.avg(Query.cost_usd))))).scalar_one()
     latencies = [
         int(value)
-        for value in (await session.execute(select(Query.latency_ms))).scalars().all()
+        for value in (await session.execute(scoped(select(Query.latency_ms)))).scalars().all()
         if value is not None
     ]
-    feedback_total = (
-        await session.execute(select(func.count()).select_from(Feedback))
-    ).scalar_one()
-    helpful = (
-        await session.execute(select(func.count()).where(Feedback.rating == "helpful"))
-    ).scalar_one()
+    feedback_stmt = select(func.count()).select_from(Feedback)
+    helpful_stmt = select(func.count()).where(Feedback.rating == "helpful")
+    if plugin_id is not None:
+        feedback_stmt = feedback_stmt.join(Query, Query.id == Feedback.query_id).where(
+            Query.plugin_id == plugin_id
+        )
+        helpful_stmt = helpful_stmt.join(Query, Query.id == Feedback.query_id).where(
+            Query.plugin_id == plugin_id
+        )
+    feedback_total = (await session.execute(feedback_stmt)).scalar_one()
+    helpful = (await session.execute(helpful_stmt)).scalar_one()
 
     return MetricsResponse(
         total_queries=total,

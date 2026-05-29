@@ -131,6 +131,40 @@ class PluginRegistration(BaseModel):
     source_types: list[str] = Field(default_factory=list)
 
 
+class PluginSummary(BaseModel):
+    """A registered plugin for admin listing (FR-PM-1).
+
+    Attributes:
+        slug: Plugin slug.
+        name: Display name.
+        status: Lifecycle status.
+        wporg_slug: WordPress.org slug, if set.
+        github_repo: GitHub repository, if set.
+        source_count: Number of attached sources.
+    """
+
+    slug: str
+    name: str
+    status: str
+    wporg_slug: str | None
+    github_repo: str | None
+    source_count: int
+
+
+class SourceSummary(BaseModel):
+    """A plugin source for admin listing (FR-PM-2/4).
+
+    Attributes:
+        source_type: The typed source kind.
+        enabled: Whether the source is enabled.
+        last_ingested_at: ISO timestamp of the last ingestion, if any.
+    """
+
+    source_type: str
+    enabled: bool
+    last_ingested_at: str | None
+
+
 class IngestTriggerResponse(BaseModel):
     """Result of triggering ingestion for a plugin (FR-IN-6).
 

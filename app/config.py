@@ -48,6 +48,14 @@ class Settings(BaseSettings):
         openai_api_key: OpenAI credential, required for embeddings and the OpenAI provider.
         ollama_base_url: Base URL of a local Ollama server.
         default_provider: Provider the factory resolves when none is requested.
+        github_token: Optional GitHub token raising the REST rate limit (NFR-SC-1).
+        github_api_url: Base URL of the GitHub REST API.
+        wporg_api_url: Base URL of the WordPress.org API host.
+        wporg_site_url: Base URL of the WordPress.org site (support forums).
+        http_timeout_seconds: Per-request timeout for outbound ingestion HTTP calls.
+        http_max_retries: Bounded retry count for transient ingestion failures (FR-IN-8).
+        http_user_agent: User-Agent sent on all outbound ingestion requests.
+        ingest_polite_delay_seconds: Delay between polite HTML retrievals (FR-IN-4).
         embed_model: Embedding model identifier.
         embed_batch_size: Maximum texts per embedding call (hard cap 100).
         dimensionality_mode: Embedding storage/dimension mode (ADR-002).
@@ -93,6 +101,16 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     ollama_base_url: str = "http://localhost:11434"
     default_provider: ProviderName = "anthropic"
+
+    # --- Ingestion sources (§2.2, FR-IN-*) ---
+    github_token: SecretStr | None = None
+    github_api_url: str = "https://api.github.com"
+    wporg_api_url: str = "https://api.wordpress.org"
+    wporg_site_url: str = "https://wordpress.org"
+    http_timeout_seconds: float = Field(default=30.0, gt=0.0)
+    http_max_retries: int = Field(default=4, ge=0)
+    http_user_agent: str = "wp-support-rag/0.1 (+https://github.com/mralaminahamed)"
+    ingest_polite_delay_seconds: float = Field(default=1.0, ge=0.0)
 
     # --- Embedding (§2.3, ADR-002) ---
     embed_model: str = "text-embedding-3-large"

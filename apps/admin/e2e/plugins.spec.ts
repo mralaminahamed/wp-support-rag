@@ -16,7 +16,7 @@ test("lists plugins and expands sources", async ({ page }) => {
   ).toBeVisible();
 
   // Expand the first row's sources.
-  await page.getByRole("button", { name: "Toggle sources" }).first().click();
+  await page.getByRole("cell", { name: "swift-menu-duplicator", exact: true }).first().click();
   await expect(page.getByText("github_readme")).toBeVisible();
 });
 

@@ -1,0 +1,15 @@
+# Declarative plugin registration (FR-PM-5).
+# Author: Al Amin Ahamed.
+#
+# Contributor plugin (not owned by this account); WordPress.org sources only.
+
+slug: post-grid-module-for-divi
+name: Squad Post Grid Module for Divi
+wporg_slug: post-grid-module-for-divi
+
+sources:
+  - source_type: wporg_faq
+  - source_type: wporg_changelog
+  - source_type: wporg_support
+    config:
+      max_threads: 10

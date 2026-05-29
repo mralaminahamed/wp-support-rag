@@ -1,0 +1,15 @@
+# Declarative plugin registration (FR-PM-5).
+# Author: Al Amin Ahamed.
+#
+# Contributor plugin (not owned by this account); WordPress.org sources only.
+
+slug: squad-modules-for-divi
+name: Squad Modules Lite
+wporg_slug: squad-modules-for-divi
+
+sources:
+  - source_type: wporg_faq
+  - source_type: wporg_changelog
+  - source_type: wporg_support
+    config:
+      max_threads: 10

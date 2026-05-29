@@ -70,8 +70,8 @@ warn_unused_ignores = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-# Celery ships incomplete type information; scope the allowance narrowly.
-module = ["celery.*"]
+# Celery and pgvector ship no type stubs; scope the allowance narrowly.
+module = ["celery.*", "pgvector.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

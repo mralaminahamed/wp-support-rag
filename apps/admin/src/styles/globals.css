@@ -1,0 +1,37 @@
+/* Admin console styles. Author: Al Amin Ahamed. */
+:root {
+  --bg: #f6f7f9;
+  --fg: #1f2937;
+  --muted: #6b7280;
+  --border: #d9dce1;
+  --accent: #2563eb;
+  --ok: #16a34a;
+  --err: #b91c1c;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+a { color: var(--accent); text-decoration: none; }
+
+.shell { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+.topbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.topbar h1 { font-size: 20px; margin: 0 auto 0 0; }
+nav.tabs { display: flex; gap: 4px; margin: 16px 0; }
+nav.tabs a { padding: 6px 12px; border-radius: 8px; color: var(--muted); }
+nav.tabs a.active { background: #e8edff; color: var(--accent); }
+
+input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+input#token { width: 280px; } input#api { width: 220px; }
+button { padding: 8px 12px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; cursor: pointer; }
+button.secondary { background: #eef0f3; color: #374151; }
+button:disabled { opacity: 0.6; cursor: default; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eef0f3; }
+.muted { color: var(--muted); font-size: 13px; }
+.err { color: var(--err); font-size: 13px; }
+.cards { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; min-width: 150px; background: #fff; }
+.card span { color: var(--muted); font-size: 13px; }
+.card b { display: block; font-size: 22px; margin-top: 4px; }

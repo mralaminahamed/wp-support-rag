@@ -29,7 +29,7 @@ test("dashboard shows health and metrics", async ({ page }) => {
 
 test("sidebar navigates between pages", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "Plugins" }).click();
+  await page.getByRole("link", { name: "Plugins", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Plugins" })).toBeVisible();
   await page.getByRole("link", { name: "Playground" }).click();
   await expect(page.getByRole("heading", { name: "Playground" })).toBeVisible();

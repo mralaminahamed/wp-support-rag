@@ -1,4 +1,4 @@
-// Dashboard: KPIs, health, metrics, corpus overview, quick actions. Author: Al Amin Ahamed.
+// Dashboard: KPIs, health, metrics, corpus, coverage, quick actions. Author: Al Amin Ahamed.
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -6,6 +6,8 @@ import {
   Database,
   DollarSign,
   Gauge,
+  GitBranch,
+  Globe,
   Layers,
   MessagesSquare,
   Play,
@@ -30,6 +32,15 @@ import { StatCard } from "@/components/ui/stat-card";
 import { pct } from "@/lib/format";
 import { extractErrorMessage } from "@/lib/queryClient";
 
+function Bar({ value, max }: { value: number; max: number }) {
+  const width = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+      <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const toast = useToast();
   const health = useQuery({ queryKey: ["health"], queryFn: getHealth, retry: false });
@@ -42,10 +53,13 @@ export function DashboardPage() {
   });
 
   const m = metrics.data;
-  const totalSources = plugins.data?.reduce((sum, p) => sum + p.source_count, 0) ?? 0;
-  const topPlugins = [...(plugins.data ?? [])]
-    .sort((a, b) => b.source_count - a.source_count)
-    .slice(0, 5);
+  const list = plugins.data ?? [];
+  const totalSources = list.reduce((sum, p) => sum + p.source_count, 0);
+  const maxSources = Math.max(1, ...list.map((p) => p.source_count));
+  const topPlugins = [...list].sort((a, b) => b.source_count - a.source_count).slice(0, 5);
+  const githubBacked = list.filter((p) => p.github_repo).length;
+  const wporgListed = list.filter((p) => p.wporg_slug).length;
+  const total = list.length;
 
   return (
     <div className="space-y-5">
@@ -82,7 +96,6 @@ export function DashboardPage() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
-        {/* Left column */}
         <div className="space-y-5 lg:col-span-2">
           <Card>
             <CardHeader>
@@ -134,9 +147,37 @@ export function DashboardPage() {
               )}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Top plugins by sources</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {plugins.isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-7" />
+                  ))}
+                </div>
+              ) : topPlugins.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No plugins registered yet.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {topPlugins.map((p) => (
+                    <li key={p.slug} className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="truncate font-mono text-[13px]">{p.slug}</span>
+                        <span className="text-muted-foreground">{p.source_count}</span>
+                      </div>
+                      <Bar value={p.source_count} max={maxSources} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Right column */}
         <div className="space-y-5">
           <Card>
             <CardHeader>
@@ -144,34 +185,25 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               {plugins.isLoading ? (
-                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-20 w-full" />
               ) : plugins.isError ? (
                 <ErrorState message={extractErrorMessage(plugins.error)} />
               ) : (
-                <>
-                  <div className="mb-4 grid grid-cols-2 gap-3">
-                    <StatCard icon={Boxes} label="Plugins" value={plugins.data!.length} />
-                    <StatCard icon={Layers} label="Sources" value={totalSources} />
-                  </div>
-                  <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Top plugins
-                  </p>
-                  <ul className="space-y-1.5">
-                    {topPlugins.map((p) => (
-                      <li key={p.slug} className="flex items-center justify-between gap-2 text-sm">
-                        <span className="truncate font-mono text-[13px]">{p.slug}</span>
-                        <Badge variant="secondary">{p.source_count}</Badge>
-                      </li>
-                    ))}
-                    {topPlugins.length === 0 && (
-                      <li className="text-sm text-muted-foreground">No plugins registered.</li>
-                    )}
-                  </ul>
-                  <Button asChild variant="ghost" size="sm" className="mt-3 w-full">
-                    <Link to="/plugins">Manage plugins</Link>
-                  </Button>
-                </>
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard icon={Boxes} label="Plugins" value={total} />
+                  <StatCard icon={Layers} label="Sources" value={totalSources} />
+                </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Coverage</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <CoverageRow icon={GitBranch} label="GitHub-backed" value={githubBacked} total={total} />
+              <CoverageRow icon={Globe} label="WordPress.org" value={wporgListed} total={total} />
             </CardContent>
           </Card>
 
@@ -183,6 +215,11 @@ export function DashboardPage() {
               <Button asChild variant="secondary" className="justify-start">
                 <Link to="/playground">
                   <Sparkles /> Try a query
+                </Link>
+              </Button>
+              <Button asChild variant="secondary" className="justify-start">
+                <Link to="/plugins">
+                  <Boxes /> Manage plugins
                 </Link>
               </Button>
               <Button
@@ -216,6 +253,31 @@ function HealthItem({
       <Icon className={ok ? "size-4 text-success" : "size-4 text-warning"} />
       <span className="text-xs text-muted-foreground">{label}</span>
       <Badge variant={ok ? "success" : "warning"}>{value}</Badge>
+    </div>
+  );
+}
+
+function CoverageRow({
+  icon: Icon,
+  label,
+  value,
+  total,
+}: {
+  icon: typeof Globe;
+  label: string;
+  value: number;
+  total: number;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2 text-sm">
+        <Icon className="size-4 text-muted-foreground" />
+        <span className="flex-1">{label}</span>
+        <span className="text-muted-foreground">
+          {value}/{total}
+        </span>
+      </div>
+      <Bar value={value} max={Math.max(1, total)} />
     </div>
   );
 }

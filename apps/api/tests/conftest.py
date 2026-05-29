@@ -17,9 +17,10 @@ from typing import Any
 
 import pytest
 import vcr
+from sqlalchemy import delete, or_, text
+
 from apps.api.db.engine import get_sessionmaker
 from apps.api.db.models import Plugin
-from sqlalchemy import delete, or_, text
 
 CASSETTE_DIR = Path(__file__).parent / "cassettes"
 TEST_SLUG_PREFIX = "phase2-"

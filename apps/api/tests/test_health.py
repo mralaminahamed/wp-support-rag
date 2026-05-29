@@ -7,8 +7,9 @@ database or Redis; real connectivity is covered by ``test_db_integration``.
 from __future__ import annotations
 
 import pytest
-from apps.api import main
 from fastapi.testclient import TestClient
+
+from apps.api import main
 
 
 @pytest.fixture

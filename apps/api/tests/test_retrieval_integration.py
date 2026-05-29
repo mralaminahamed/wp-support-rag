@@ -20,8 +20,7 @@ from apps.api.ingestion.registry import add_source, create_plugin
 from apps.api.ingestion.tasks import ingest_source
 from apps.api.rag.router import route_query
 from apps.api.rag.service import retrieve
-
-from tests.conftest import BoWEmbeddingClient, play
+from apps.api.tests.conftest import BoWEmbeddingClient, play
 
 SLUG = "swift-menu-duplicator"
 

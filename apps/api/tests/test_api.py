@@ -13,6 +13,10 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import delete
+
 from apps.api.api.deps import get_embedding_client, get_provider, get_settings_dep
 from apps.api.config import Settings, get_settings
 from apps.api.db.engine import dispose_engine, get_engine, get_sessionmaker
@@ -22,11 +26,7 @@ from apps.api.ingestion.adapters.base import RawDocument, SourceContext
 from apps.api.ingestion.registry import add_source, create_plugin
 from apps.api.ingestion.tasks import ingest_source
 from apps.api.main import create_app
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import delete
-
-from tests.conftest import (
+from apps.api.tests.conftest import (
     BoWEmbeddingClient,
     FakeProvider,
     FakeStreamingProvider,

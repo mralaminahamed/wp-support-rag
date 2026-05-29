@@ -56,7 +56,7 @@ ignore = ["D203", "D213"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests and empty package markers need no public docstrings.
-"tests/*" = ["D"]
+"apps/api/tests/*" = ["D"]
 "**/__init__.py" = ["D104"]
 
 [tool.ruff.lint.pydocstyle]
@@ -73,6 +73,9 @@ warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 plugins = ["pydantic.mypy"]
+# Tests live with the service (apps/api/tests) but are not type-checked under
+# --strict; they exercise behaviour, not type contracts.
+exclude = ["apps/api/tests/"]
 
 [[tool.mypy.overrides]]
 # Celery and pgvector ship no type stubs; scope the allowance narrowly.
@@ -86,7 +89,7 @@ disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["apps/api/tests"]
 addopts = "-q"
 filterwarnings = [
     # Benign GC of a prior test's engine pool bound to a closed event loop.

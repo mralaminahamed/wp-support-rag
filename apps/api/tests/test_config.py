@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from apps.api.config import Settings
 from pydantic import ValidationError
+
+from apps.api.config import Settings
 
 
 def test_defaults_are_internally_consistent() -> None:

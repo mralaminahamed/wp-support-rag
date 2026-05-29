@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import select
+
 from apps.api.config import get_settings
 from apps.api.db.engine import get_sessionmaker
 from apps.api.db.models import Chunk, Document
@@ -18,9 +20,7 @@ from apps.api.db.redis import get_redis
 from apps.api.ingestion.registry import add_source, create_plugin
 from apps.api.ingestion.tasks import ingest_source
 from apps.api.processing.centroid import get_plugin_centroid
-from sqlalchemy import select
-
-from tests.conftest import FakeEmbeddingClient, play
+from apps.api.tests.conftest import FakeEmbeddingClient, play
 
 SLUG = "swift-menu-duplicator"
 

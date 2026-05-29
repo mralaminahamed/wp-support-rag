@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 import pytest
+
 from apps.api.config import Settings
 from apps.api.llm.base import CompletionRequest, ProviderRejected, ProviderUnavailable
 from apps.api.llm.ollama import OllamaProvider

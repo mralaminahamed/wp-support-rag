@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import pytest
-from apps.api.config import get_settings
-from apps.api.prompts.registry import PromptRegistry, PromptVersion
-from apps.api.rag import generator as generator_module
 from eval.harness import (
     CITATION_ACCURACY_THRESHOLD,
     CONTEXT_RECALL_THRESHOLD,
@@ -21,7 +18,10 @@ from eval.metrics import (
     source_in_results,
 )
 
-from tests.conftest import database_available
+from apps.api.config import get_settings
+from apps.api.prompts.registry import PromptRegistry, PromptVersion
+from apps.api.rag import generator as generator_module
+from apps.api.tests.conftest import database_available
 
 
 def test_dataset_meets_spec() -> None:

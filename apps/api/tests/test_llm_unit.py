@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+
 from apps.api.config import Settings
 from apps.api.llm.base import (
     CompletionRequest,

@@ -6,11 +6,11 @@ import json
 import uuid
 
 import pytest
+
 from apps.api.llm.base import ProviderUnavailable, StreamingProvider
 from apps.api.rag.generator import DEGRADED_NOTICE, generate_stream
 from apps.api.rag.retriever import RetrievedChunk
-
-from tests.conftest import FakeProvider, FakeStreamingProvider
+from apps.api.tests.conftest import FakeProvider, FakeStreamingProvider
 
 REAL_URL = "https://wordpress.org/plugins/swift-menu-duplicator/#faq"
 

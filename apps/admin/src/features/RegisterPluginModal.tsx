@@ -1,11 +1,20 @@
-// Register-plugin form modal. Author: Al Amin Ahamed.
+// Register-plugin dialog. Author: Al Amin Ahamed.
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { registerPlugin } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
-import { Modal } from "@/components/ui/modal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { extractErrorMessage } from "@/lib/queryClient";
 import { SOURCE_TYPES } from "@/types/api";
 
@@ -29,9 +38,7 @@ export function RegisterPluginModal({ onClose }: { onClose: () => void }) {
   });
 
   function toggle(type: string) {
-    setTypes((current) =>
-      current.includes(type) ? current.filter((t) => t !== type) : [...current, type],
-    );
+    setTypes((cur) => (cur.includes(type) ? cur.filter((t) => t !== type) : [...cur, type]));
   }
 
   function submit() {
@@ -49,50 +56,61 @@ export function RegisterPluginModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Modal
-      title="Register plugin"
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Register plugin</DialogTitle>
+          <DialogDescription>
+            Add a plugin and choose which documentation sources to ingest.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Field label="Slug">
+          <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="my-plugin" />
+        </Field>
+        <Field label="Name">
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="My Plugin" />
+        </Field>
+        <Field label="WordPress.org slug" hint="Optional — enables wp.org sources.">
+          <Input value={wporgSlug} onChange={(e) => setWporgSlug(e.target.value)} />
+        </Field>
+        <Field label="GitHub repo" hint="Optional — owner/name.">
+          <Input
+            value={githubRepo}
+            onChange={(e) => setGithubRepo(e.target.value)}
+            placeholder="mralaminahamed/my-plugin"
+          />
+        </Field>
+
+        <div>
+          <Label className="mb-2 block">Sources</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {SOURCE_TYPES.map((type) => (
+              <label
+                key={type}
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+              >
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary"
+                  checked={types.includes(type)}
+                  onChange={() => toggle(type)}
+                />
+                <span className="font-mono text-[13px]">{type}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={submit} disabled={mutation.isPending}>
-            {mutation.isPending ? "Registering…" : "Register"}
+            Register
           </Button>
-        </>
-      }
-    >
-      <Field label="Slug">
-        <Input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="my-plugin" />
-      </Field>
-      <Field label="Name">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="My Plugin" />
-      </Field>
-      <Field label="WordPress.org slug" hint="Optional — enables wp.org sources.">
-        <Input value={wporgSlug} onChange={(e) => setWporgSlug(e.target.value)} />
-      </Field>
-      <Field label="GitHub repo" hint="Optional — owner/name.">
-        <Input
-          value={githubRepo}
-          onChange={(e) => setGithubRepo(e.target.value)}
-          placeholder="mralaminahamed/my-plugin"
-        />
-      </Field>
-      <p className="mb-1.5 text-[13px] font-medium">Sources</p>
-      <div className="grid grid-cols-2 gap-2">
-        {SOURCE_TYPES.map((type) => (
-          <label key={type} className="flex items-center gap-2 text-sm text-muted">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-accent"
-              checked={types.includes(type)}
-              onChange={() => toggle(type)}
-            />
-            <span className="font-mono text-[13px]">{type}</span>
-          </label>
-        ))}
-      </div>
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

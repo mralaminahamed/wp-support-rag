@@ -4,11 +4,12 @@ import { RefreshCw } from "lucide-react";
 import { getHealth, getMetrics } from "@/api/admin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody, CardHead } from "@/components/ui/card";
-import { ErrorState, Skeleton } from "@/components/ui/feedback";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import { pct } from "@/lib/format";
 import { extractErrorMessage } from "@/lib/queryClient";
-import { pct } from "@/lib/utils";
 
 export function DashboardPage() {
   const health = useQuery({ queryKey: ["health"], queryFn: getHealth, retry: false });
@@ -27,14 +28,16 @@ export function DashboardPage() {
               void metrics.refetch();
             }}
           >
-            <RefreshCw className="h-4 w-4" /> Refresh
+            <RefreshCw /> Refresh
           </Button>
         }
       />
 
       <Card className="mb-5">
-        <CardHead title="Service health" />
-        <CardBody className="flex flex-wrap gap-6">
+        <CardHeader>
+          <CardTitle>Service health</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-6">
           {health.isLoading ? (
             <Skeleton className="h-6 w-64" />
           ) : health.isError ? (
@@ -45,17 +48,19 @@ export function DashboardPage() {
               <HealthItem label="Database" value={health.data!.database} />
               <HealthItem label="Redis" value={health.data!.redis} />
               <div>
-                <p className="text-xs text-muted">Environment</p>
+                <p className="text-xs text-muted-foreground">Environment</p>
                 <p className="mt-1 font-medium">{health.data!.environment}</p>
               </div>
             </>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
 
       <Card>
-        <CardHead title="Metrics" />
-        <CardBody>
+        <CardHeader>
+          <CardTitle>Metrics</CardTitle>
+        </CardHeader>
+        <CardContent>
           {metrics.isLoading ? (
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -75,18 +80,17 @@ export function DashboardPage() {
               <Stat label="p95 latency" value={`${metrics.data!.p95_latency_ms} ms`} />
             </div>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );
 }
 
 function HealthItem({ label, value }: { label: string; value: string }) {
-  const ok = value === "ok";
   return (
     <div>
-      <p className="text-xs text-muted">{label}</p>
-      <Badge tone={ok ? "ok" : "warn"} dot className="mt-1">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <Badge variant={value === "ok" ? "success" : "warning"} className="mt-1">
         {value}
       </Badge>
     </div>
@@ -95,8 +99,8 @@ function HealthItem({ label, value }: { label: string; value: string }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-surface-2 px-4 py-3">
-      <p className="text-[13px] text-muted">{label}</p>
+    <div className="rounded-lg border bg-muted/40 px-4 py-3">
+      <p className="text-[13px] text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value}</p>
     </div>
   );

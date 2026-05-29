@@ -4,8 +4,9 @@ import { useState } from "react";
 import { getHealth } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody, CardHead } from "@/components/ui/card";
-import { Field, Input } from "@/components/ui/field";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { getApiBase, getToken, setApiBase, setToken } from "@/lib/config";
 
@@ -30,7 +31,8 @@ export function SettingsPage() {
     try {
       const health = await getHealth();
       if (health.status === "ok") toast.ok("Connected — service healthy.");
-      else toast.info(`Reachable but ${health.status} (db ${health.database}, redis ${health.redis}).`);
+      else
+        toast.info(`Reachable but ${health.status} (db ${health.database}, redis ${health.redis}).`);
     } catch {
       toast.err("Could not reach the API at that URL.");
     } finally {
@@ -42,10 +44,16 @@ export function SettingsPage() {
     <div>
       <PageHeader title="Settings" />
       <Card className="max-w-xl">
-        <CardHead title="Connection" />
-        <CardBody>
+        <CardHeader>
+          <CardTitle>Connection</CardTitle>
+        </CardHeader>
+        <CardContent>
           <Field label="API base URL">
-            <Input value={api} onChange={(e) => setApi(e.target.value)} placeholder="http://localhost:8000" />
+            <Input
+              value={api}
+              onChange={(e) => setApi(e.target.value)}
+              placeholder="http://localhost:8000"
+            />
           </Field>
           <Field
             label="Admin bearer token"
@@ -59,7 +67,7 @@ export function SettingsPage() {
               {testing ? "Testing…" : "Test connection"}
             </Button>
           </div>
-        </CardBody>
+        </CardContent>
       </Card>
     </div>
   );

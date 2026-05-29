@@ -7,12 +7,23 @@ import { postFeedback, postQuery, streamQuery } from "@/api/query";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardBody } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
-import { Field, Select, Textarea } from "@/components/ui/field";
-import { PageHeader } from "@/components/ui/page-header";
+import { Field } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { extractErrorMessage } from "@/lib/queryClient";
+import { PageHeader } from "@/components/ui/page-header";
 import type { SourceRef } from "@/types/api";
+
+const ROUTE = "__route__";
 
 interface Result {
   query_id: string;
@@ -75,7 +86,7 @@ export function PlaygroundPage() {
       <PageHeader title="Playground" />
 
       <Card className="mb-5">
-        <CardBody>
+        <CardContent>
           <Field label="Question">
             <Textarea
               rows={3}
@@ -85,62 +96,74 @@ export function PlaygroundPage() {
             />
           </Field>
           <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-50 flex-1">
-              <Field label="Plugin (optional — routes when blank)">
-                <Select value={slug} onChange={(e) => setSlug(e.target.value)}>
-                  <option value="">Auto-route</option>
+            <div className="grid min-w-52 flex-1 gap-1.5">
+              <Label>Plugin (optional — routes when blank)</Label>
+              <Select value={slug || ROUTE} onValueChange={(v) => setSlug(v === ROUTE ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ROUTE}>Auto-route</SelectItem>
                   {plugins.data?.map((p) => (
-                    <option key={p.slug} value={p.slug}>
+                    <SelectItem key={p.slug} value={p.slug}>
                       {p.slug}
-                    </option>
+                    </SelectItem>
                   ))}
-                </Select>
-              </Field>
+                </SelectContent>
+              </Select>
             </div>
-            <label className="mb-3.5 flex items-center gap-2 text-sm text-muted">
+            <label className="flex items-center gap-2 pb-2 text-sm text-muted-foreground">
               <input
                 type="checkbox"
-                className="h-4 w-4 accent-accent"
+                className="size-4 accent-primary"
                 checked={streaming}
                 onChange={(e) => setStreaming(e.target.checked)}
               />
               Stream
             </label>
-            <Button className="mb-3.5" onClick={run} disabled={busy}>
-              {busy ? <Spinner /> : <Send className="h-4 w-4" />}
+            <Button onClick={run} disabled={busy}>
+              {busy ? <Spinner /> : <Send />}
               Ask
             </Button>
           </div>
-        </CardBody>
+        </CardContent>
       </Card>
 
       {(busy || result || live) && (
         <Card>
-          <CardBody>
+          <CardContent>
             {result && (
               <div className="mb-3 flex flex-wrap gap-2">
-                {result.declined && <Badge tone="warn">declined</Badge>}
-                {result.degraded && <Badge tone="warn">degraded</Badge>}
-                {result.cached && <Badge tone="accent">cached</Badge>}
-                <Badge tone="neutral">{result.latency_ms} ms</Badge>
+                {result.declined && <Badge variant="warning">declined</Badge>}
+                {result.degraded && <Badge variant="warning">degraded</Badge>}
+                {result.cached && <Badge variant="accent">cached</Badge>}
+                <Badge variant="secondary">{result.latency_ms} ms</Badge>
               </div>
             )}
-            <p className="answer whitespace-pre-wrap leading-relaxed">
-              {result ? result.answer : live || <span className="text-muted">Generating…</span>}
+            <p className="leading-relaxed whitespace-pre-wrap">
+              {result ? (
+                result.answer
+              ) : live ? (
+                live
+              ) : (
+                <span className="text-muted-foreground">Generating…</span>
+              )}
             </p>
 
             {result && result.sources.length > 0 && (
               <div className="mt-4">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted">Sources</p>
+                <p className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Sources
+                </p>
                 {result.sources.map((s) => (
                   <a
                     key={s.url}
                     href={s.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block border-b border-border py-1.5 text-sm"
+                    className="block border-b py-1.5 text-sm text-primary hover:underline"
                   >
-                    {s.cited && <span className="mr-1.5 text-ok">✓</span>}
+                    {s.cited && <span className="mr-1.5 text-success">✓</span>}
                     {s.heading_path ? `${s.heading_path} — ${s.url}` : s.url}
                   </a>
                 ))}
@@ -148,7 +171,7 @@ export function PlaygroundPage() {
             )}
 
             {result && !result.declined && (
-              <div className="mt-4 flex items-center gap-2 text-sm text-muted">
+              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                 <span>Was this helpful?</span>
                 <Button
                   variant="secondary"
@@ -156,7 +179,7 @@ export function PlaygroundPage() {
                   disabled={feedbackSent}
                   onClick={() => sendFeedback("helpful")}
                 >
-                  <ThumbsUp className="h-3.5 w-3.5" /> Yes
+                  <ThumbsUp /> Yes
                 </Button>
                 <Button
                   variant="secondary"
@@ -164,11 +187,11 @@ export function PlaygroundPage() {
                   disabled={feedbackSent}
                   onClick={() => sendFeedback("not_helpful")}
                 >
-                  <ThumbsDown className="h-3.5 w-3.5" /> No
+                  <ThumbsDown /> No
                 </Button>
               </div>
             )}
-          </CardBody>
+          </CardContent>
         </Card>
       )}
 

@@ -11,13 +11,9 @@ export function ConnectionBadge() {
     retry: false,
   });
 
-  if (health.isLoading) return <Badge tone="neutral">checking…</Badge>;
-  if (health.isError) return <Badge tone="err" dot>API unreachable</Badge>;
+  if (health.isLoading) return <Badge variant="secondary">checking…</Badge>;
+  if (health.isError) return <Badge variant="destructive">API unreachable</Badge>;
 
   const ok = health.data?.status === "ok";
-  return (
-    <Badge tone={ok ? "ok" : "warn"} dot>
-      {ok ? "healthy" : "degraded"}
-    </Badge>
-  );
+  return <Badge variant={ok ? "success" : "warning"}>{ok ? "healthy" : "degraded"}</Badge>;
 }

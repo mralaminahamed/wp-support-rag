@@ -17,8 +17,8 @@ const NAV: Array<{ to: string; label: string; icon: ComponentType<{ className?: 
 export function AppShell() {
   return (
     <div className="grid min-h-screen grid-cols-[232px_1fr] max-md:grid-cols-1">
-      <aside className="sticky top-0 flex h-screen flex-col gap-1.5 border-r border-border bg-surface p-3.5 max-md:hidden">
-        <div className="flex items-center gap-2.5 px-2 pb-4 pt-1 font-bold">
+      <aside className="sticky top-0 flex h-screen flex-col gap-1 border-r border-sidebar-border bg-sidebar p-3.5 max-md:hidden">
+        <div className="flex items-center gap-2.5 px-2 pb-4 pt-1 font-bold text-sidebar-foreground">
           <Logo size={24} />
           <span>Support RAG</span>
         </div>
@@ -29,22 +29,22 @@ export function AppShell() {
             end={to === "/"}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2 font-medium text-muted hover:bg-surface-2 hover:text-fg",
-                isActive && "bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent",
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground",
+                isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
               )
             }
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="size-4" />
             {label}
           </NavLink>
         ))}
         <div className="flex-1" />
-        <p className="px-3 text-xs text-muted">Al Amin Ahamed</p>
+        <p className="px-3 text-xs text-muted-foreground">Al Amin Ahamed</p>
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="sticky top-0 z-10 flex h-15 items-center gap-3 border-b border-border bg-surface px-6 py-3.5">
-          <span className="font-semibold">Admin</span>
+        <header className="sticky top-0 z-10 flex h-15 items-center gap-3 border-b border-border bg-background/80 px-6 backdrop-blur">
+          <span className="font-semibold md:hidden">Support RAG</span>
           <div className="flex-1" />
           <ConnectionBadge />
           <ThemeToggle />

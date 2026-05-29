@@ -7,8 +7,17 @@ import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { EmptyState, ErrorState } from "@/components/ui/feedback";
 import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { RegisterPluginModal } from "@/features/RegisterPluginModal";
 import { SourcesRow } from "@/features/SourcesRow";
 import { extractErrorMessage } from "@/lib/queryClient";
@@ -42,16 +51,16 @@ export function PluginsPage() {
               onClick={() => ingestEvery.mutate()}
               disabled={ingestEvery.isPending}
             >
-              <Play className="h-4 w-4" /> Ingest all
+              <Play /> Ingest all
             </Button>
             <Button onClick={() => setRegistering(true)}>
-              <Plus className="h-4 w-4" /> Register plugin
+              <Plus /> Register plugin
             </Button>
           </>
         }
       />
 
-      <Card>
+      <Card className="py-0">
         {plugins.isLoading ? (
           <div className="space-y-2 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -65,43 +74,44 @@ export function PluginsPage() {
         ) : plugins.data!.length === 0 ? (
           <EmptyState title="No plugins yet" hint="Register one to start ingesting docs." />
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th className="w-8" />
-                <th>Slug</th>
-                <th>Name</th>
-                <th>Sources</th>
-                <th>GitHub</th>
-                <th>wp.org</th>
-                <th className="text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8" />
+                <TableHead>Slug</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Sources</TableHead>
+                <TableHead>GitHub</TableHead>
+                <TableHead>wp.org</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {plugins.data!.map((p) => (
                 <Fragment key={p.slug}>
-                  <tr className="hover:bg-surface-2">
-                    <td>
-                      <button
-                        className="text-muted hover:text-fg"
+                  <TableRow>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => setExpanded(expanded === p.slug ? null : p.slug)}
                         aria-label="Toggle sources"
                       >
-                        {expanded === p.slug ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </button>
-                    </td>
-                    <td className="font-mono text-[13px]">{p.slug}</td>
-                    <td>{p.name}</td>
-                    <td>
-                      <Badge tone="neutral">{p.source_count}</Badge>
-                    </td>
-                    <td className="font-mono text-[13px] text-muted">{p.github_repo ?? "—"}</td>
-                    <td className="font-mono text-[13px] text-muted">{p.wporg_slug ?? "—"}</td>
-                    <td className="text-right">
+                        {expanded === p.slug ? <ChevronDown /> : <ChevronRight />}
+                      </Button>
+                    </TableCell>
+                    <TableCell className="font-mono text-[13px]">{p.slug}</TableCell>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{p.source_count}</Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-[13px] text-muted-foreground">
+                      {p.github_repo ?? "—"}
+                    </TableCell>
+                    <TableCell className="font-mono text-[13px] text-muted-foreground">
+                      {p.wporg_slug ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -110,13 +120,13 @@ export function PluginsPage() {
                       >
                         Ingest
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                   {expanded === p.slug && <SourcesRow slug={p.slug} colSpan={7} />}
                 </Fragment>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </Card>
 

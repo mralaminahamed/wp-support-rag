@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import ClassVar, Protocol, runtime_checkable
 
 from pydantic import BaseModel
@@ -106,6 +106,33 @@ class LLMProvider(Protocol):
 
         Raises:
             ProviderUnavailable: On timeout or outage after retries.
+            ProviderRejected: On a non-retryable provider error.
+        """
+        ...
+
+
+@runtime_checkable
+class StreamingProvider(Protocol):
+    """Optional streaming capability for a provider (FR-DL-3).
+
+    Providers that can stream tokens implement this in addition to
+    :class:`LLMProvider`. The generator detects it at runtime and falls back to
+    :meth:`LLMProvider.complete` when a provider does not support streaming.
+    """
+
+    name: ClassVar[str]
+
+    def stream(self, request: CompletionRequest) -> AsyncIterator[str]:
+        """Yield answer text deltas as they are generated.
+
+        Args:
+            request: The grounded completion request.
+
+        Returns:
+            AsyncIterator[str]: Text deltas in order.
+
+        Raises:
+            ProviderUnavailable: On timeout or outage.
             ProviderRejected: On a non-retryable provider error.
         """
         ...

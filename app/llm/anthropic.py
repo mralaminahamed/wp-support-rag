@@ -9,6 +9,7 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import ClassVar
 
 import anthropic
@@ -97,3 +98,31 @@ class AnthropicProvider:
                 output_tokens=response.usage.output_tokens,
             ),
         )
+
+    async def stream(self, request: CompletionRequest) -> AsyncIterator[str]:
+        """Stream answer text deltas via the Messages streaming API (FR-DL-3).
+
+        Args:
+            request: The grounded completion request.
+
+        Yields:
+            str: Text deltas in order.
+
+        Raises:
+            ProviderUnavailable: On a retryable SDK error.
+            ProviderRejected: On any other SDK error.
+        """
+        try:
+            async with self._client.messages.stream(
+                model=request.model,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                system=request.system,
+                messages=[{"role": "user", "content": request.user}],
+            ) as stream:
+                async for delta in stream.text_stream:
+                    yield delta
+        except _RETRYABLE as exc:
+            raise ProviderUnavailable(f"anthropic unavailable: {exc}") from exc
+        except anthropic.APIError as exc:
+            raise ProviderRejected(f"anthropic rejected: {exc}") from exc

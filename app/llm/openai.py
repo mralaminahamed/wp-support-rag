@@ -9,6 +9,7 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import ClassVar
 
 import openai
@@ -100,3 +101,36 @@ class OpenAIProvider:
                 output_tokens=usage.completion_tokens if usage else 0,
             ),
         )
+
+    async def stream(self, request: CompletionRequest) -> AsyncIterator[str]:
+        """Stream answer text deltas via the Chat Completions API (FR-DL-3).
+
+        Args:
+            request: The grounded completion request.
+
+        Yields:
+            str: Text deltas in order.
+
+        Raises:
+            ProviderUnavailable: On a retryable SDK error.
+            ProviderRejected: On any other SDK error.
+        """
+        try:
+            stream = await self._client.chat.completions.create(
+                model=request.model,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                stream=True,
+                messages=[
+                    {"role": "system", "content": request.system},
+                    {"role": "user", "content": request.user},
+                ],
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content if chunk.choices else None
+                if delta:
+                    yield delta
+        except _RETRYABLE as exc:
+            raise ProviderUnavailable(f"openai unavailable: {exc}") from exc
+        except openai.APIError as exc:
+            raise ProviderRejected(f"openai rejected: {exc}") from exc

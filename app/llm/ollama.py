@@ -9,6 +9,8 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
 from typing import Any, ClassVar
 
 import httpx
@@ -96,3 +98,44 @@ class OllamaProvider:
                 output_tokens=int(data.get("eval_count", 0)),
             ),
         )
+
+    async def stream(self, request: CompletionRequest) -> AsyncIterator[str]:
+        """Stream answer text deltas via the Ollama chat API (FR-DL-3).
+
+        Args:
+            request: The grounded completion request.
+
+        Yields:
+            str: Text deltas in order.
+
+        Raises:
+            ProviderUnavailable: On a transport error or 5xx status.
+            ProviderRejected: On a 4xx status.
+        """
+        payload: dict[str, Any] = {
+            "model": request.model,
+            "stream": True,
+            "options": {"temperature": request.temperature, "num_predict": request.max_tokens},
+            "messages": [
+                {"role": "system", "content": request.system},
+                {"role": "user", "content": request.user},
+            ],
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                async with client.stream(
+                    "POST", f"{self._base_url}/api/chat", json=payload
+                ) as response:
+                    if response.status_code >= 500:
+                        raise ProviderUnavailable(f"ollama unavailable: {response.status_code}")
+                    if response.status_code >= 400:
+                        raise ProviderRejected(f"ollama rejected: {response.status_code}")
+                    async for line in response.aiter_lines():
+                        if not line.strip():
+                            continue
+                        chunk = json.loads(line)
+                        delta = chunk.get("message", {}).get("content")
+                        if delta:
+                            yield delta
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailable(f"ollama unavailable: {exc}") from exc

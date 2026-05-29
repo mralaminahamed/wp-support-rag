@@ -1,0 +1,98 @@
+"""Shared test fixtures.
+
+Provides a VCR configured for fully offline replay (no live calls), a database
+availability gate that skips integration tests when no migrated database is
+reachable, and a cleanup fixture that removes plugins created by tests.
+
+Author: Al Amin Ahamed.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
+from typing import Any
+
+import pytest
+import vcr
+from app.db.engine import get_sessionmaker
+from app.db.models import Plugin
+from sqlalchemy import delete, text
+
+CASSETTE_DIR = Path(__file__).parent / "cassettes"
+TEST_SLUG_PREFIX = "phase2-"
+
+# Offline VCR: never record, match on the request path. An unmatched request
+# raises, proving no live calls reach GitHub or WordPress.org.
+offline_vcr = vcr.VCR(
+    cassette_library_dir=str(CASSETTE_DIR),
+    record_mode="none",
+    match_on=["method", "scheme", "host", "path"],
+)
+
+
+def play(cassette_name: str) -> Any:
+    """Return an offline cassette context allowing repeated playback.
+
+    Repeats are allowed because some interactions are replayed more than once
+    (e.g. FAQ and changelog share one Plugin API endpoint, and re-run tests
+    replay it again).
+
+    Args:
+        cassette_name: File name under the cassette directory.
+
+    Returns:
+        Any: A context manager that activates the cassette.
+    """
+    return offline_vcr.use_cassette(cassette_name, allow_playback_repeats=True)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_pooled_clients() -> Iterator[None]:
+    """Rebuild the cached engine/Redis clients per test.
+
+    Each async test runs on its own event loop; a pooled engine cached from a
+    prior test is bound to that test's now-closed loop and would fail. Clearing
+    the memoised factories ensures every test builds clients on its own loop.
+
+    Yields:
+        None: Control to the test body.
+    """
+    from app.db.engine import get_engine, get_sessionmaker
+    from app.db.redis import get_redis
+
+    for cached in (get_engine, get_sessionmaker, get_redis):
+        cached.cache_clear()
+    yield
+    for cached in (get_engine, get_sessionmaker, get_redis):
+        cached.cache_clear()
+
+
+async def database_available() -> bool:
+    """Report whether a migrated database is reachable.
+
+    Returns:
+        bool: ``True`` if the ``documents`` table can be queried.
+    """
+    try:
+        async with get_sessionmaker()() as session:
+            await session.execute(text("SELECT 1 FROM documents LIMIT 0"))
+        return True
+    except Exception:
+        return False
+
+
+@pytest.fixture
+async def clean_plugins() -> AsyncIterator[None]:
+    """Remove test plugins (slug prefix ``phase2-``) before and after a test."""
+    if not await database_available():
+        pytest.skip("no migrated PostgreSQL+pgvector database reachable")
+
+    async def _purge() -> None:
+        async with get_sessionmaker()() as session:
+            await session.execute(delete(Plugin).where(Plugin.slug.like(f"{TEST_SLUG_PREFIX}%")))
+            await session.commit()
+
+    await _purge()
+    yield
+    await _purge()

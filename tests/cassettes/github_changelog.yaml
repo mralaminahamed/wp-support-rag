@@ -1,0 +1,19 @@
+interactions:
+- request:
+    method: GET
+    uri: https://api.github.com/repos/mralaminahamed/swift-menu-duplicator/contents/CHANGELOG.md
+    body: ''
+    headers: {}
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      ETag:
+      - '"chlog-v1"'
+    body:
+      string: '{"path": "CHANGELOG.md", "html_url": "https://github.com/mralaminahamed/swift-menu-duplicator/blob/trunk/CHANGELOG.md",
+        "content": "IyBDaGFuZ2Vsb2cKCiMjIDEuMC4xCgotIEZpeGVkIFNWTiBkZXBsb3kgZmFpbHVyZS4KLSBUZXN0ZWQgdXAgdG8gV29yZFByZXNzIDcuMC4K"}'
+version: 1

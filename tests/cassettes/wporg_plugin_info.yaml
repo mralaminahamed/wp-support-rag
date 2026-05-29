@@ -1,0 +1,22 @@
+interactions:
+- request:
+    method: GET
+    uri: https://api.wordpress.org/plugins/info/1.2/?action=plugin_information&request%5Bslug%5D=swift-menu-duplicator
+    body: ''
+    headers: {}
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      string: '{"name": "Swift Menu Duplicator", "slug": "swift-menu-duplicator",
+        "version": "1.0.1", "author": "Al Amin Ahamed", "sections": {"description":
+        "<p>Duplicate menus.</p>", "installation": "<p>Upload.</p>", "faq": "<dl><dt>Does
+        it copy theme location assignments?</dt><dd>No. They are site-specific.</dd><dt>What
+        about sub-menu items?</dt><dd>All parent-child relationships are preserved.</dd></dl><script>alert(''xss'')</script>",
+        "changelog": "<h4>1.0.1</h4><ul><li>WP-CLI command renamed.</li><li>Fixed
+        composer.lock exclusion.</li></ul>"}}'
+version: 1

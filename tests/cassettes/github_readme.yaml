@@ -1,0 +1,19 @@
+interactions:
+- request:
+    method: GET
+    uri: https://api.github.com/repos/mralaminahamed/swift-menu-duplicator/readme
+    body: ''
+    headers: {}
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+      ETag:
+      - '"readme-v1"'
+    body:
+      string: '{"path": "README.md", "html_url": "https://github.com/mralaminahamed/swift-menu-duplicator/blob/trunk/README.md",
+        "content": "IyBTd2lmdCBNZW51IER1cGxpY2F0b3IKCkR1cGxpY2F0ZSBXb3JkUHJlc3MgbmF2aWdhdGlvbiBtZW51cyBpbiBvbmUgY2xpY2suCgojIyBJbnN0YWxsYXRpb24KClVwbG9hZCB0aGUgcGx1Z2luIGFuZCBjbGljayBhY3RpdmF0ZS4K"}'
+version: 1

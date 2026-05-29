@@ -1,0 +1,34 @@
+interactions:
+- request:
+    method: GET
+    uri: https://api.github.com/repos/mralaminahamed/swift-menu-duplicator/issues?state=closed&per_page=50&labels=question%2Csupport
+    body: ''
+    headers: {}
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      string: '[{"number": 7, "title": "How do I duplicate a menu with sub-items?",
+        "body": "When I duplicate, are child items preserved?", "html_url": "https://github.com/mralaminahamed/swift-menu-duplicator/issues/7",
+        "state": "closed", "labels": [{"name": "question"}]}]'
+- request:
+    method: GET
+    uri: https://api.github.com/repos/mralaminahamed/swift-menu-duplicator/issues/7/comments
+    body: ''
+    headers: {}
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      string: '[{"author_association": "NONE", "body": "I think you click the button."},
+        {"author_association": "OWNER", "body": "Yes. Parent-child relationships are
+        preserved via a two-pass copy."}]'
+version: 1

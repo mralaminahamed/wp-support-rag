@@ -1,0 +1,27 @@
+# Declarative plugin registration (FR-PM-5).
+# Author: Al Amin Ahamed.
+#
+# Registers the Swift Menu Duplicator plugin and its full source set. Load with
+# app.ingestion.registry.load_plugin_config(session, Path(...)).
+
+slug: swift-menu-duplicator
+name: Swift Menu Duplicator
+wporg_slug: swift-menu-duplicator
+github_repo: mralaminahamed/swift-menu-duplicator
+
+sources:
+  - source_type: github_readme
+  - source_type: github_changelog
+  - source_type: github_docs
+    config:
+      path: docs
+  - source_type: github_issues
+    config:
+      state: closed
+      labels: [question, support]
+      per_page: 50
+  - source_type: wporg_faq
+  - source_type: wporg_changelog
+  - source_type: wporg_support
+    config:
+      max_threads: 10

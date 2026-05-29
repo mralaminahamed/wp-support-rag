@@ -1,0 +1,100 @@
+# WP Plugin Support Desk RAG — local/dev stack.
+# Author: Al Amin Ahamed.
+#
+# `docker compose up` boots PostgreSQL (pgvector), Redis, the FastAPI app, the
+# Celery worker, and Celery beat with no host dependencies beyond Docker
+# (NFR-PT-1). The app, worker, and beat share one image and one configuration
+# surface; behaviour differs only by command.
+
+x-app-env: &app-env
+  WPRAG_ENVIRONMENT: development
+  WPRAG_DATABASE_DSN: postgresql+asyncpg://wprag:wprag@postgres:5432/wprag
+  WPRAG_REDIS_DSN: redis://redis:6379/0
+  WPRAG_LOG_LEVEL: INFO
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: wprag
+      POSTGRES_PASSWORD: wprag
+      POSTGRES_DB: wprag
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wprag -d wprag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD-SHELL",
+         "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    command:
+      ["celery", "-A", "app.ingestion.tasks:celery_app", "worker", "-l", "info"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      <<: *app-env
+    # Beat persists its schedule DB; write it to a writable path since the
+    # image runs as a non-root user and the working dir is root-owned.
+    command:
+      ["celery", "-A", "app.ingestion.tasks:celery_app", "beat", "-l", "info",
+       "--schedule", "/tmp/celerybeat-schedule"]
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

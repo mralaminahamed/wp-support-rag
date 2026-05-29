@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from app.config import get_settings
-from app.prompts.registry import PromptRegistry, PromptVersion
-from app.rag import generator as generator_module
+from apps.api.config import get_settings
+from apps.api.prompts.registry import PromptRegistry, PromptVersion
+from apps.api.rag import generator as generator_module
 from eval.harness import (
     CITATION_ACCURACY_THRESHOLD,
     CONTEXT_RECALL_THRESHOLD,

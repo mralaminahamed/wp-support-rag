@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
 # Application source.
-COPY app ./app
+COPY apps ./apps
 COPY eval ./eval
 COPY alembic.ini ./alembic.ini
 
@@ -37,4 +37,4 @@ USER appuser
 EXPOSE 8000
 
 # Default command runs the API; worker/beat override this in compose.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import uuid
 
-from app.config import Settings
-from app.rag.reranker import LexicalOverlapReranker
-from app.rag.retriever import RetrievedChunk, _fuse, _Hit, _passes_threshold
-from app.rag.router import cosine_similarity
+from apps.api.config import Settings
+from apps.api.rag.reranker import LexicalOverlapReranker
+from apps.api.rag.retriever import RetrievedChunk, _fuse, _Hit, _passes_threshold
+from apps.api.rag.router import cosine_similarity
 
 
 def _hit(score: float) -> _Hit:

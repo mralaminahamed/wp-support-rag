@@ -9,14 +9,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "app/prompts/**"
-      - "app/rag/**"
+      - "apps/api/prompts/**"
+      - "apps/api/rag/**"
       - "eval/dataset/**"
   pull_request:
     branches: [main]
     paths:
-      - "app/prompts/**"
-      - "app/rag/**"
+      - "apps/api/prompts/**"
+      - "apps/api/rag/**"
       - "eval/dataset/**"
 
 concurrency:

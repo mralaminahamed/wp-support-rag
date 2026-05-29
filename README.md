@@ -66,7 +66,7 @@ One script tag on any external page (no build step):
 ```
 
 It posts to `/api/v1/query`, renders the cited answer, and offers a
-helpful/not-helpful control posting to `/api/v1/feedback`. See `widget/index.html`
+helpful/not-helpful control posting to `/api/v1/feedback`. See `apps/web/index.html` (and an admin console at `apps/web/admin.html`)
 for a working external-page demo.
 
 ## API
@@ -102,10 +102,10 @@ All secrets are environment-only. See `RUNBOOK.md` for day-two operations.
 
 ```bash
 ruff check . && ruff format --check .     # lint + format
-mypy --strict app eval                    # types
+mypy --strict apps eval                   # types
 pytest                                    # tests (external calls mocked/VCR-replayed)
 python -m eval.harness                    # offline eval gate (recall >= 0.85, citation >= 0.95)
 ```
 
 CI runs lint/typecheck/test on every push; the eval gate runs on changes under
-`app/prompts/`, `app/rag/`, or `eval/dataset/` and blocks regressions.
+`apps/api/prompts/`, `apps/api/rag/`, or `eval/dataset/` and blocks regressions.

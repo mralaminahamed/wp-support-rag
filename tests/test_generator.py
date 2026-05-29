@@ -11,12 +11,12 @@ import logging
 import uuid
 
 import pytest
-from app.config import Settings
-from app.db.redis import get_redis
-from app.llm.base import ProviderUnavailable
-from app.llm.circuit_breaker import CostCeilingExceeded
-from app.rag.generator import DECLINE_MESSAGE, DEGRADED_NOTICE, generate
-from app.rag.retriever import RetrievedChunk
+from apps.api.config import Settings
+from apps.api.db.redis import get_redis
+from apps.api.llm.base import ProviderUnavailable
+from apps.api.llm.circuit_breaker import CostCeilingExceeded
+from apps.api.rag.generator import DECLINE_MESSAGE, DEGRADED_NOTICE, generate
+from apps.api.rag.retriever import RetrievedChunk
 
 from tests.conftest import FakeProvider
 

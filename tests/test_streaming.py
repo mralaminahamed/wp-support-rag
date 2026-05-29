@@ -6,9 +6,9 @@ import json
 import uuid
 
 import pytest
-from app.llm.base import ProviderUnavailable, StreamingProvider
-from app.rag.generator import DEGRADED_NOTICE, generate_stream
-from app.rag.retriever import RetrievedChunk
+from apps.api.llm.base import ProviderUnavailable, StreamingProvider
+from apps.api.rag.generator import DEGRADED_NOTICE, generate_stream
+from apps.api.rag.retriever import RetrievedChunk
 
 from tests.conftest import FakeProvider, FakeStreamingProvider
 
@@ -28,7 +28,7 @@ def _chunk() -> RetrievedChunk:
 
 
 async def _redis_ready() -> bool:
-    from app.db.redis import get_redis
+    from apps.api.db.redis import get_redis
 
     try:
         return bool(await get_redis().ping())
@@ -46,7 +46,7 @@ async def test_generate_stream_tokens_then_validated_final() -> None:
     """Streaming yields tokens then a citation-validated final event (FR-DL-3/GN-8)."""
     if not await _redis_ready():
         pytest.skip("no Redis reachable")
-    from app.db.redis import get_redis
+    from apps.api.db.redis import get_redis
 
     provider = FakeStreamingProvider(text=f"Not copied. See {REAL_URL} and https://evil.com/x.")
     events = [
@@ -68,7 +68,7 @@ async def test_generate_stream_non_streaming_provider_falls_back() -> None:
     """A non-streaming provider still produces token + final events."""
     if not await _redis_ready():
         pytest.skip("no Redis reachable")
-    from app.db.redis import get_redis
+    from apps.api.db.redis import get_redis
 
     provider = FakeProvider(text=f"Answer with {REAL_URL}.")
     events = [
@@ -86,7 +86,7 @@ async def test_generate_stream_degrades_on_provider_failure() -> None:
     """A streaming provider outage yields a degraded final with links (FR-GN-6)."""
     if not await _redis_ready():
         pytest.skip("no Redis reachable")
-    from app.db.redis import get_redis
+    from apps.api.db.redis import get_redis
 
     class _DownStreamer:
         name = "down"
@@ -112,7 +112,7 @@ async def test_generate_stream_degrades_on_provider_failure() -> None:
 
 def test_sse_frame_format() -> None:
     """The SSE encoder emits a parseable event/data frame."""
-    from app.api.routes_query import _sse
+    from apps.api.api.routes_query import _sse
 
     frame = _sse("token", {"text": "hi"})
     assert frame.startswith("event: token\ndata: ")

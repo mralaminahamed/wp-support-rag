@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from app.config import Settings
+from apps.api.config import Settings
 from pydantic import ValidationError
 
 

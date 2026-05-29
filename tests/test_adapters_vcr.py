@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from app.ingestion.adapters.base import RawDocument, SourceContext
-from app.ingestion.adapters.github import GitHubAdapter
-from app.ingestion.adapters.wporg import WporgAdapter
+from apps.api.ingestion.adapters.base import RawDocument, SourceContext
+from apps.api.ingestion.adapters.github import GitHubAdapter
+from apps.api.ingestion.adapters.wporg import WporgAdapter
 
 from tests.conftest import play
 

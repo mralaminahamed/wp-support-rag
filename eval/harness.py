@@ -22,16 +22,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
-from app.config import Settings, get_settings
-from app.db.engine import dispose_engine, get_sessionmaker
-from app.db.models import Chunk, Document, Plugin, Source
-from app.db.redis import close_redis, get_redis
-from app.llm.base import CompletionRequest, CompletionResult, TokenUsage
-from app.processing.chunker import count_tokens
-from app.prompts.registry import get_registry
-from app.rag.generator import generate
-from app.rag.retriever import RetrievedChunk
-from app.rag.service import retrieve
+from apps.api.config import Settings, get_settings
+from apps.api.db.engine import dispose_engine, get_sessionmaker
+from apps.api.db.models import Chunk, Document, Plugin, Source
+from apps.api.db.redis import close_redis, get_redis
+from apps.api.llm.base import CompletionRequest, CompletionResult, TokenUsage
+from apps.api.processing.chunker import count_tokens
+from apps.api.prompts.registry import get_registry
+from apps.api.rag.generator import generate
+from apps.api.rag.retriever import RetrievedChunk
+from apps.api.rag.service import retrieve
 from pydantic import BaseModel
 from sqlalchemy import delete
 

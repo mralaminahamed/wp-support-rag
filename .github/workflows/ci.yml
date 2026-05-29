@@ -47,7 +47,7 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
       - name: mypy --strict
-        run: uv run mypy --strict app eval
+        run: uv run mypy --strict apps eval
 
   test:
     name: test (pytest)

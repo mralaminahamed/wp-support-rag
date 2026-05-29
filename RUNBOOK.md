@@ -47,7 +47,7 @@ curl -sS -X POST "$API/api/v1/admin/plugins" \
 ```
 
 A plugin and its full source set can also be loaded from a declarative file
-(`config/plugins/*.yaml`) via `app.ingestion.registry.load_plugin_config`.
+(`config/plugins/*.yaml`) via `apps.api.ingestion.registry.load_plugin_config`.
 
 List registered plugins:
 

@@ -32,7 +32,7 @@ test("sidebar navigates between pages", async ({ page }) => {
   await page.getByRole("link", { name: "Plugins", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Plugins" })).toBeVisible();
   await page.getByRole("link", { name: "Playground" }).click();
-  await expect(page.getByRole("heading", { name: "Playground" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ask about your plugins" })).toBeVisible();
   await page.getByRole("link", { name: "Settings" }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
 });

@@ -43,9 +43,7 @@ from app.config import get_settings
 _DIMENSIONS = get_settings().embedding_dimensions
 """Embedding width resolved once from configuration (provider-dependent)."""
 
-HNSW_OPS = (
-    "halfvec_cosine_ops" if get_settings().embedding_uses_halfvec else "vector_cosine_ops"
-)
+HNSW_OPS = "halfvec_cosine_ops" if get_settings().embedding_uses_halfvec else "vector_cosine_ops"
 """HNSW operator class matching the configured embedding storage type."""
 
 # Allowed enumerations, kept identical to the DDL CHECK constraints.

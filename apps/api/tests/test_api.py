@@ -262,9 +262,7 @@ async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
         assert tc.get("/api/v1/admin/llm", headers=headers).json()["provider"] == "ollama"
 
         # Omitting the model falls back to the provider's env default.
-        defaulted = tc.put(
-            "/api/v1/admin/llm", headers=headers, json={"provider": "openai"}
-        ).json()
+        defaulted = tc.put("/api/v1/admin/llm", headers=headers, json={"provider": "openai"}).json()
         assert defaulted["provider"] == "openai"
         assert defaulted["model"] == Settings().openai_model
 

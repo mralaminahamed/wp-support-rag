@@ -239,9 +239,7 @@ async def get_embedding_override(redis: Redis) -> dict[str, str]:
     return data if isinstance(data, dict) else {}
 
 
-async def set_embedding_override(
-    redis: Redis, provider: EmbeddingProvider, model: str
-) -> None:
+async def set_embedding_override(redis: Redis, provider: EmbeddingProvider, model: str) -> None:
     """Persist an embedding provider/model override.
 
     Args:

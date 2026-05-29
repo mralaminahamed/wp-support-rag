@@ -1,0 +1,29 @@
+<!doctype html>
+<!--
+  External-page embedding demo for the support widget (FR-DL-2).
+  Author: Al Amin Ahamed.
+
+  Serve this file from any host. The single script tag below loads the widget
+  and auto-mounts it for the given plugin. Set data-api-base to your API origin
+  (defaults to same-origin when omitted).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Swift Menu Duplicator — Support</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 720px; margin: 48px auto; padding: 0 16px; }
+      h1 { font-size: 20px; }
+    </style>
+  </head>
+  <body>
+    <h1>Swift Menu Duplicator — Support</h1>
+    <p>Ask a question and get a cited answer from the documentation.</p>
+
+    <script
+      src="./widget.js"
+      data-plugin-slug="swift-menu-duplicator"
+      data-api-base="http://localhost:8000"></script>
+  </body>
+</html>

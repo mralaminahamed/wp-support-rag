@@ -1,10 +1,9 @@
 # Declarative plugin registration (FR-PM-5).
 # Author: Al Amin Ahamed.
 
-slug: alamin-ai-provider-for-opencode-zen
-name: AI Provider for OpenCode Zen
-wporg_slug: alamin-ai-provider-for-opencode-zen
-github_repo: mralaminahamed/ai-provider-for-opencode-zen
+slug: elementor-kit-importer
+name: Elementor Kit Importer
+github_repo: mralaminahamed/elementor-kit-importer
 
 sources:
   - source_type: github_readme
@@ -17,8 +16,3 @@ sources:
       state: closed
       labels: [question, support]
       per_page: 50
-  - source_type: wporg_faq
-  - source_type: wporg_changelog
-  - source_type: wporg_support
-    config:
-      max_threads: 10

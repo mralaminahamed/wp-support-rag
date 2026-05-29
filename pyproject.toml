@@ -23,13 +23,14 @@ dependencies = [
     "tenacity>=9.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "vcrpy>=6.0",
+    "types-PyYAML>=6.0",
 ]
 
 [build-system]
@@ -74,7 +75,16 @@ plugins = ["pydantic.mypy"]
 module = ["celery.*", "pgvector.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# Celery's task decorator is untyped (no stubs); the tasks themselves are typed.
+module = ["app.ingestion.tasks"]
+disallow_untyped_decorators = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-q"
+filterwarnings = [
+    # Benign GC of a prior test's engine pool bound to a closed event loop.
+    "ignore:coroutine 'Connection._cancel' was never awaited:RuntimeWarning",
+]

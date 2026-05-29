@@ -111,6 +111,12 @@ export interface EmbeddingConfigUpdate {
   model?: string | null;
 }
 
+export interface OllamaModels {
+  reachable: boolean;
+  base_url: string;
+  models: string[];
+}
+
 export interface QueryResponse {
   query_id: string;
   answer: string;

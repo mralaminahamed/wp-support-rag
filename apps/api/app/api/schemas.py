@@ -258,6 +258,20 @@ class EmbeddingConfigUpdate(BaseModel):
     model: str | None = None
 
 
+class OllamaModelsResponse(BaseModel):
+    """Models available on the configured Ollama server (FR-GN-3).
+
+    Attributes:
+        reachable: Whether the Ollama server responded.
+        base_url: The Ollama base URL that was queried.
+        models: Model names available for selection (generation or embedding).
+    """
+
+    reachable: bool
+    base_url: str
+    models: list[str]
+
+
 class LLMConfigResponse(BaseModel):
     """The active generation + embedding config and the available choices (FR-GN-3).
 

@@ -317,6 +317,26 @@ async def test_admin_embedding_config_guards_dimension_change(_ready: None) -> N
         assert reset["embedding"]["source"] == "env"
 
 
+async def test_admin_ollama_models_reports_unreachable(_ready: None) -> None:
+    """The Ollama models proxy returns reachable=False when the server is down."""
+    token = "secret-token"  # noqa: S105 - test-only token
+    app = create_app()
+    # Point at a closed local port so the request fails fast without any live API.
+    app.dependency_overrides[get_settings_dep] = lambda: Settings(
+        admin_bearer_token=token,
+        ollama_base_url="http://127.0.0.1:9",
+        http_timeout_seconds=0.5,
+    )
+    with TestClient(app) as tc:
+        response = tc.get(
+            "/api/v1/admin/ollama/models", headers={"Authorization": f"Bearer {token}"}
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reachable"] is False
+    assert body["models"] == []
+
+
 async def test_admin_llm_config_requires_bearer(_ready: None, client: TestClient) -> None:
     """The LLM-config endpoint rejects unauthenticated calls (FR-DL-4)."""
     assert client.get("/api/v1/admin/llm").status_code == 401

@@ -7,6 +7,7 @@ import type {
   LLMConfig,
   LLMConfigUpdate,
   Metrics,
+  OllamaModels,
   PluginRegistration,
   PluginSummary,
   SourceSummary,
@@ -77,5 +78,10 @@ export async function updateEmbeddingConfig(payload: EmbeddingConfigUpdate): Pro
 
 export async function resetEmbeddingConfig(): Promise<LLMConfig> {
   const res = await apiClient.delete<LLMConfig>("/api/v1/admin/llm/embedding");
+  return res.data;
+}
+
+export async function getOllamaModels(): Promise<OllamaModels> {
+  const res = await apiClient.get<OllamaModels>("/api/v1/admin/ollama/models");
   return res.data;
 }

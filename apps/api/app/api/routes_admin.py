@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
 from sqlalchemy import Select, func, select
@@ -27,6 +28,7 @@ from app.api.schemas import (
     LLMConfigUpdate,
     LLMProviderInfo,
     MetricsResponse,
+    OllamaModelsResponse,
     PluginRegistration,
     PluginSummary,
     SourceSummary,
@@ -254,6 +256,34 @@ async def reset_embedding_config(
     """
     await clear_embedding_override(redis)
     return await _llm_config(redis, settings)
+
+
+@router.get("/ollama/models", response_model=OllamaModelsResponse)
+async def list_ollama_models(
+    settings: Settings = Depends(get_settings_dep),
+) -> OllamaModelsResponse:
+    """List models available on the configured Ollama server (FR-GN-3).
+
+    Proxies Ollama's ``/api/tags`` so the admin UI can offer a model picker
+    without the browser needing to reach the Ollama host directly. Returns an
+    empty list with ``reachable=False`` when the server cannot be contacted.
+
+    Args:
+        settings: Application settings supplying the Ollama base URL.
+
+    Returns:
+        OllamaModelsResponse: Reachability and the available model names.
+    """
+    base_url = settings.ollama_base_url.rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=settings.http_timeout_seconds) as client:
+            response = await client.get(f"{base_url}/api/tags")
+        response.raise_for_status()
+    except httpx.HTTPError:
+        return OllamaModelsResponse(reachable=False, base_url=base_url, models=[])
+    raw = response.json().get("models", [])
+    models = sorted(m["name"] for m in raw if isinstance(m, dict) and "name" in m)
+    return OllamaModelsResponse(reachable=True, base_url=base_url, models=models)
 
 
 @router.post("/plugins", status_code=status.HTTP_201_CREATED)

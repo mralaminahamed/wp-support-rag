@@ -148,6 +148,16 @@ export async function mockApi(page: Page): Promise<void> {
     }
   });
 
+  await page.route("**/api/v1/admin/ollama/models", (route) =>
+    route.fulfill({
+      json: {
+        reachable: true,
+        base_url: "http://host.docker.internal:11434",
+        models: ["llama3.2", "nomic-embed-text", "qwen3-embedding:4b"],
+      },
+    }),
+  );
+
   await page.route("**/api/v1/admin/llm/embedding", (route) => {
     const method = route.request().method();
     if (method === "PUT") {

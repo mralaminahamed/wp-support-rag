@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import {
   getHealth,
   getLlmConfig,
+  getOllamaModels,
   resetEmbeddingConfig,
   resetLlmConfig,
   updateEmbeddingConfig,
   updateLlmConfig,
 } from "@/api/admin";
+import type { OllamaModels } from "@/types/api";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,46 @@ export function SettingsPage() {
       <GenerationCard />
       <EmbeddingCard />
     </div>
+  );
+}
+
+function ModelField({
+  hint,
+  value,
+  onChange,
+  placeholder,
+  isOllama,
+  listId,
+  ollama,
+}: {
+  hint?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  isOllama: boolean;
+  listId: string;
+  ollama?: OllamaModels;
+}) {
+  return (
+    <Field label="Model" hint={hint}>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="font-mono text-[13px]"
+        list={isOllama && ollama?.reachable ? listId : undefined}
+      />
+      {isOllama && ollama?.reachable && (
+        <datalist id={listId}>
+          {ollama.models.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+      )}
+      {isOllama && ollama && !ollama.reachable && (
+        <p className="mt-1 text-xs text-warning">Ollama unreachable at {ollama.base_url}</p>
+      )}
+    </Field>
   );
 }
 
@@ -106,6 +148,7 @@ function GenerationCard() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
+  const ollama = useQuery({ queryKey: ["ollama-models"], queryFn: getOllamaModels });
 
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
@@ -187,17 +230,15 @@ function GenerationCard() {
               </Select>
             </Field>
 
-            <Field
-              label="Model"
+            <ModelField
               hint={selected ? `Env default: ${selected.default_model}` : undefined}
-            >
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={selected?.default_model}
-                className="font-mono text-[13px]"
-              />
-            </Field>
+              value={model}
+              onChange={setModel}
+              placeholder={selected?.default_model}
+              isOllama={provider === "ollama"}
+              listId="ollama-gen-models"
+              ollama={ollama.data}
+            />
 
             {selected && !selected.configured && (
               <p className="mb-3 text-sm text-warning">
@@ -228,6 +269,7 @@ function EmbeddingCard() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
+  const ollama = useQuery({ queryKey: ["ollama-models"], queryFn: getOllamaModels });
   const embedding = config.data?.embedding;
 
   const [provider, setProvider] = useState("");
@@ -313,14 +355,15 @@ function EmbeddingCard() {
               </Select>
             </Field>
 
-            <Field label="Model" hint={selected ? `Default: ${selected.default_model}` : undefined}>
-              <Input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={selected?.default_model}
-                className="font-mono text-[13px]"
-              />
-            </Field>
+            <ModelField
+              hint={selected ? `Default: ${selected.default_model}` : undefined}
+              value={model}
+              onChange={setModel}
+              placeholder={selected?.default_model}
+              isOllama={provider === "ollama"}
+              listId="ollama-embed-models"
+              ollama={ollama.data}
+            />
 
             {selected && !selected.applicable && (
               <p className="mb-3 text-sm text-warning">

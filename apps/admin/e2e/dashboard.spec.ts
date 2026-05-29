@@ -21,6 +21,10 @@ test("dashboard shows health and metrics", async ({ page }) => {
 
   // Topbar connection badge resolves to healthy.
   await expect(page.getByText("healthy")).toBeVisible();
+
+  // Corpus + quick actions cards.
+  await expect(page.getByText("Corpus", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Try a query/i })).toBeVisible();
 });
 
 test("sidebar navigates between pages", async ({ page }) => {

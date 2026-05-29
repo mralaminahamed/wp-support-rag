@@ -175,3 +175,17 @@ class IngestTriggerResponse(BaseModel):
 
     plugin_slug: str
     enqueued_sources: int
+
+
+class IngestAllResponse(BaseModel):
+    """Result of triggering ingestion for every plugin (FR-IN-6).
+
+    Attributes:
+        plugins: Number of plugins processed.
+        enqueued_sources: Total enabled sources dispatched across all plugins.
+        by_plugin: Per-plugin enqueue counts.
+    """
+
+    plugins: int
+    enqueued_sources: int
+    by_plugin: list[IngestTriggerResponse]

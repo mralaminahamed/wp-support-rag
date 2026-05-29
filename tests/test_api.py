@@ -55,6 +55,11 @@ class _StubAdapter:
 
 async def _seed() -> None:
     """Register the plugin and ingest one deterministic document."""
+    # Clear the per-IP rate-limit counter so a fresh budget applies each test.
+    redis = get_redis()
+    keys = [key async for key in redis.scan_iter(match="ratelimit:*")]
+    if keys:
+        await redis.delete(*keys)
     async with get_sessionmaker()() as session:
         await session.execute(delete(Plugin).where(Plugin.slug == SLUG))
         await session.commit()
@@ -132,7 +137,9 @@ async def test_rate_limit_enforced(_ready: None, monkeypatch: pytest.MonkeyPatch
         lambda: Settings(rate_limit_max_requests=2, rate_limit_window_seconds=60),
     )
     app = create_app()
-    app.dependency_overrides[get_embedding_client] = lambda: BoWEmbeddingClient(8)
+    app.dependency_overrides[get_embedding_client] = lambda: BoWEmbeddingClient(
+        get_settings().embedding_dimensions
+    )
     app.dependency_overrides[get_provider] = lambda: FakeProvider()
     with TestClient(app) as tc:
         payload = {"question": "hi there", "plugin_slug": SLUG}
@@ -185,6 +192,28 @@ async def test_admin_lists_plugins_and_sources(_ready: None) -> None:
     assert any(p["slug"] == SLUG for p in plugins.json())
     assert sources.status_code == 200
     assert any(s["source_type"] == "wporg_faq" for s in sources.json())
+
+
+async def test_admin_ingest_all_enqueues_every_source(
+    _ready: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ingest-all endpoint enqueues one task per enabled source (FR-IN-6)."""
+    from app.ingestion import tasks as tasks_module
+
+    calls: list[str] = []
+    monkeypatch.setattr(tasks_module.ingest_source_task, "delay", calls.append)
+
+    token = "secret-token"  # noqa: S105 - test-only token
+    app = create_app()
+    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
+    with TestClient(app) as tc:
+        response = tc.post("/api/v1/admin/ingest", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["plugins"] >= 1
+    assert body["enqueued_sources"] == len(calls) >= 1
+    assert sum(p["enqueued_sources"] for p in body["by_plugin"]) == body["enqueued_sources"]
 
 
 async def test_admin_metrics_requires_bearer(_ready: None, client: TestClient) -> None:

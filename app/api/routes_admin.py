@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
 from app.api.schemas import (
+    IngestAllResponse,
     IngestTriggerResponse,
     MetricsResponse,
     PluginRegistration,
@@ -138,6 +139,35 @@ async def list_plugin_sources(
         )
         for source in sources
     ]
+
+
+@router.post("/ingest", response_model=IngestAllResponse)
+async def trigger_ingest_all(session: AsyncSession = Depends(get_session)) -> IngestAllResponse:
+    """Dispatch ingestion for every plugin's enabled sources (FR-IN-6/7).
+
+    One Celery task is enqueued per ``(plugin, source)`` so a failing source never
+    aborts the others.
+
+    Args:
+        session: Database session.
+
+    Returns:
+        IngestAllResponse: Totals and per-plugin enqueue counts.
+    """
+    from app.ingestion.tasks import ingest_source_task
+
+    plugins = await list_plugins(session)
+    by_plugin: list[IngestTriggerResponse] = []
+    total = 0
+    for plugin in plugins:
+        sources = await list_sources(session, plugin.id, enabled_only=True)
+        for source in sources:
+            ingest_source_task.delay(str(source.id))
+        by_plugin.append(
+            IngestTriggerResponse(plugin_slug=plugin.slug, enqueued_sources=len(sources))
+        )
+        total += len(sources)
+    return IngestAllResponse(plugins=len(plugins), enqueued_sources=total, by_plugin=by_plugin)
 
 
 @router.post("/ingest/{plugin_slug}", response_model=IngestTriggerResponse)

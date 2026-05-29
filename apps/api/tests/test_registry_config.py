@@ -5,8 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from apps.api.ingestion.registry import parse_plugin_config
+from app.ingestion.registry import parse_plugin_config
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 

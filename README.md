@@ -28,12 +28,28 @@ widget → POST /api/v1/query
 
 See `docs/` for the full SRS, architecture, implementation plan, and ADRs.
 
+## Repository layout
+
+A monorepo: a pnpm + Turborepo workspace for the JS apps, with the Python service
+self-contained under `apps/api`.
+
+```
+apps/
+  api/    # Python backend — FastAPI + Celery (package `app`, eval/, tests/, own pyproject + uv.lock)
+  web/    # embeddable support widget (single-file, no build)
+  admin/  # admin console — Vite + React + TypeScript
+config/plugins/   # declarative plugin registrations (FR-PM-5)
+docker-compose*.yml  pnpm-workspace.yaml  turbo.json
+```
+
+Python commands run from `apps/api`; JS commands (`pnpm dev/build`) from the root.
+
 ## Quickstart (local)
 
 ```bash
-uv sync                                   # install dependencies
+cd apps/api && uv sync                    # install (Python lives here)
 docker compose up -d                      # postgres+pgvector, redis, app, worker, beat
-uv run alembic upgrade head               # create the schema
+cd apps/api && uv run alembic upgrade head
 curl localhost:8000/health                # {"status":"ok",...}
 ```
 
@@ -102,10 +118,10 @@ All secrets are environment-only. See `RUNBOOK.md` for day-two operations.
 
 ```bash
 ruff check . && ruff format --check .     # lint + format
-mypy --strict apps eval                   # types
+mypy --strict app eval                   # types (from apps/api)
 pytest                                    # tests (external calls mocked/VCR-replayed)
-python -m eval.harness                    # offline eval gate (recall >= 0.85, citation >= 0.95)
+python -m eval.harness                     # offline eval gate (from apps/api)
 ```
 
 CI runs lint/typecheck/test on every push; the eval gate runs on changes under
-`apps/api/prompts/`, `apps/api/rag/`, or `eval/dataset/` and blocks regressions.
+`apps/api/app/prompts/`, `apps/api/app/rag/`, or `apps/api/eval/dataset/` and blocks regressions.

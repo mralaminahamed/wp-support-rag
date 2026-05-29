@@ -44,12 +44,12 @@ services:
 
   app:
     build:
-      context: .
+      context: ./apps/api
       dockerfile: Dockerfile
     environment:
       <<: *app-env
     command:
-      ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     depends_on:
@@ -68,12 +68,12 @@ services:
 
   worker:
     build:
-      context: .
+      context: ./apps/api
       dockerfile: Dockerfile
     environment:
       <<: *app-env
     command:
-      ["celery", "-A", "apps.api.ingestion.tasks:celery_app", "worker", "-l", "info"]
+      ["celery", "-A", "app.ingestion.tasks:celery_app", "worker", "-l", "info"]
     depends_on:
       redis:
         condition: service_healthy
@@ -82,14 +82,14 @@ services:
 
   beat:
     build:
-      context: .
+      context: ./apps/api
       dockerfile: Dockerfile
     environment:
       <<: *app-env
     # Beat persists its schedule DB; write it to a writable path since the
     # image runs as a non-root user and the working dir is root-owned.
     command:
-      ["celery", "-A", "apps.api.ingestion.tasks:celery_app", "beat", "-l", "info",
+      ["celery", "-A", "app.ingestion.tasks:celery_app", "beat", "-l", "info",
        "--schedule", "/tmp/celerybeat-schedule"]
     depends_on:
       redis:

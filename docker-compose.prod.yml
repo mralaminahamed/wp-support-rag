@@ -48,11 +48,11 @@ services:
 
   app:
     build:
-      context: .
+      context: ./apps/api
       dockerfile: Dockerfile
     environment:
       <<: *app-env
-    command: ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,11 +62,11 @@ services:
 
   worker:
     build:
-      context: .
+      context: ./apps/api
       dockerfile: Dockerfile
     environment:
       <<: *app-env
-    command: ["celery", "-A", "apps.api.ingestion.tasks:celery_app", "worker", "-l", "info"]
+    command: ["celery", "-A", "app.ingestion.tasks:celery_app", "worker", "-l", "info"]
     depends_on:
       redis:
         condition: service_healthy
@@ -76,12 +76,12 @@ services:
 
   beat:
     build:
-      context: .
+      context: ./apps/api
       dockerfile: Dockerfile
     environment:
       <<: *app-env
     command:
-      ["celery", "-A", "apps.api.ingestion.tasks:celery_app", "beat", "-l", "info",
+      ["celery", "-A", "app.ingestion.tasks:celery_app", "beat", "-l", "info",
        "--schedule", "/tmp/celerybeat-schedule"]
     depends_on:
       redis:

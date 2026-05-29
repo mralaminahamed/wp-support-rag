@@ -13,20 +13,20 @@ import uuid
 from collections.abc import AsyncIterator, Iterator
 
 import pytest
+from app.api.deps import get_embedding_client, get_provider, get_settings_dep
+from app.config import Settings, get_settings
+from app.db.engine import dispose_engine, get_engine, get_sessionmaker
+from app.db.models import Plugin
+from app.db.redis import close_redis, get_redis
+from app.ingestion.adapters.base import RawDocument, SourceContext
+from app.ingestion.registry import add_source, create_plugin
+from app.ingestion.tasks import ingest_source
+from app.main import create_app
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
-from apps.api.api.deps import get_embedding_client, get_provider, get_settings_dep
-from apps.api.config import Settings, get_settings
-from apps.api.db.engine import dispose_engine, get_engine, get_sessionmaker
-from apps.api.db.models import Plugin
-from apps.api.db.redis import close_redis, get_redis
-from apps.api.ingestion.adapters.base import RawDocument, SourceContext
-from apps.api.ingestion.registry import add_source, create_plugin
-from apps.api.ingestion.tasks import ingest_source
-from apps.api.main import create_app
-from apps.api.tests.conftest import (
+from tests.conftest import (
     BoWEmbeddingClient,
     FakeProvider,
     FakeStreamingProvider,
@@ -133,7 +133,7 @@ async def test_feedback_unknown_query_is_404(_ready: None, client: TestClient) -
 async def test_rate_limit_enforced(_ready: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """Public endpoints are rate-limited per IP (NFR-SC-2)."""
     monkeypatch.setattr(
-        "apps.api.api.deps.get_settings",
+        "app.api.deps.get_settings",
         lambda: Settings(rate_limit_max_requests=2, rate_limit_window_seconds=60),
     )
     app = create_app()
@@ -198,7 +198,7 @@ async def test_admin_ingest_all_enqueues_every_source(
     _ready: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The ingest-all endpoint enqueues one task per enabled source (FR-IN-6)."""
-    from apps.api.ingestion import tasks as tasks_module
+    from app.ingestion import tasks as tasks_module
 
     calls: list[str] = []
     monkeypatch.setattr(tasks_module.ingest_source_task, "delay", calls.append)

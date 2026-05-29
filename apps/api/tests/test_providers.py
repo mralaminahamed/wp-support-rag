@@ -6,10 +6,9 @@ from typing import Any
 
 import httpx
 import pytest
-
-from apps.api.config import Settings
-from apps.api.llm.base import CompletionRequest, ProviderRejected, ProviderUnavailable
-from apps.api.llm.ollama import OllamaProvider
+from app.config import Settings
+from app.llm.base import CompletionRequest, ProviderRejected, ProviderUnavailable
+from app.llm.ollama import OllamaProvider
 
 REQUEST = CompletionRequest(system="s", user="u", model="llama3.1", max_tokens=64)
 

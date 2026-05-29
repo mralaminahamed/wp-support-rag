@@ -12,15 +12,16 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 
-from apps.api.config import Settings, get_settings
-from apps.api.db.engine import get_sessionmaker
-from apps.api.db.redis import get_redis
-from apps.api.ingestion.adapters.base import RawDocument, SourceContext
-from apps.api.ingestion.registry import add_source, create_plugin
-from apps.api.ingestion.tasks import ingest_source
-from apps.api.rag.router import route_query
-from apps.api.rag.service import retrieve
-from apps.api.tests.conftest import BoWEmbeddingClient, play
+from app.config import Settings, get_settings
+from app.db.engine import get_sessionmaker
+from app.db.redis import get_redis
+from app.ingestion.adapters.base import RawDocument, SourceContext
+from app.ingestion.registry import add_source, create_plugin
+from app.ingestion.tasks import ingest_source
+from app.rag.router import route_query
+from app.rag.service import retrieve
+
+from tests.conftest import BoWEmbeddingClient, play
 
 SLUG = "swift-menu-duplicator"
 

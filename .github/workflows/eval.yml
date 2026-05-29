@@ -9,15 +9,15 @@ on:
   push:
     branches: [main]
     paths:
-      - "apps/api/prompts/**"
-      - "apps/api/rag/**"
-      - "eval/dataset/**"
+      - "apps/api/app/prompts/**"
+      - "apps/api/app/rag/**"
+      - "apps/api/eval/dataset/**"
   pull_request:
     branches: [main]
     paths:
-      - "apps/api/prompts/**"
-      - "apps/api/rag/**"
-      - "eval/dataset/**"
+      - "apps/api/app/prompts/**"
+      - "apps/api/app/rag/**"
+      - "apps/api/eval/dataset/**"
 
 concurrency:
   group: eval-${{ github.ref }}
@@ -25,6 +25,10 @@ concurrency:
 
 env:
   UV_VERSION: "0.9.26"
+
+defaults:
+  run:
+    working-directory: apps/api
 
 jobs:
   eval:

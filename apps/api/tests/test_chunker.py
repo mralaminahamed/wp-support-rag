@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from apps.api.config import Settings
-from apps.api.ingestion.normalize import normalize_markdown
-from apps.api.processing.chunker import chunk_document, count_tokens
+from app.config import Settings
+from app.ingestion.normalize import normalize_markdown
+from app.processing.chunker import chunk_document, count_tokens
 
 SMALL = Settings(chunk_target_tokens=20, chunk_max_tokens=30, chunk_overlap_tokens=5)
 

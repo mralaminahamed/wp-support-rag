@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
+from app.config import Settings
+from app.processing import embedder
+from app.processing.embedder import embed_texts
 
-from apps.api.config import Settings
-from apps.api.processing import embedder
-from apps.api.processing.embedder import embed_texts
-from apps.api.tests.conftest import FakeEmbeddingClient
+from tests.conftest import FakeEmbeddingClient
 
 
 async def test_batches_respect_the_configured_cap() -> None:

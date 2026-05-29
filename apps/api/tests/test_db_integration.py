@@ -13,11 +13,10 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from app.config import get_settings
+from app.db.engine import get_engine, get_sessionmaker
+from app.db.models import Chunk, Document, Plugin, Source
 from sqlalchemy import select, text
-
-from apps.api.config import get_settings
-from apps.api.db.engine import get_engine, get_sessionmaker
-from apps.api.db.models import Chunk, Document, Plugin, Source
 
 
 async def _schema_ready() -> bool:

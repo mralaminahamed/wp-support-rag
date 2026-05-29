@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from apps.api.ingestion.normalize import normalize, normalize_html, normalize_markdown
+from app.ingestion.normalize import normalize, normalize_html, normalize_markdown
 
 
 def test_markdown_preserves_heading_path() -> None:

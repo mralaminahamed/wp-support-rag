@@ -33,7 +33,7 @@ CLAUDE.md
 .remember/
 
 # Eval run artifacts (generated)
-eval/runs/
+apps/api/eval/runs/
 
 # JS / monorepo
 node_modules/

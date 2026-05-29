@@ -18,6 +18,11 @@ concurrency:
 env:
   UV_VERSION: "0.9.26"
 
+# The Python service lives in apps/api/; all uv steps run there.
+defaults:
+  run:
+    working-directory: apps/api
+
 jobs:
   lint:
     name: lint (ruff)
@@ -47,7 +52,7 @@ jobs:
       - name: Sync dependencies
         run: uv sync --frozen
       - name: mypy --strict
-        run: uv run mypy --strict apps eval
+        run: uv run mypy --strict app eval
 
   test:
     name: test (pytest)

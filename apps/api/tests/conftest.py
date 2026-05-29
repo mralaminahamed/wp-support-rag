@@ -17,10 +17,9 @@ from typing import Any
 
 import pytest
 import vcr
+from app.db.engine import get_sessionmaker
+from app.db.models import Plugin
 from sqlalchemy import delete, or_, text
-
-from apps.api.db.engine import get_sessionmaker
-from apps.api.db.models import Plugin
 
 CASSETTE_DIR = Path(__file__).parent / "cassettes"
 TEST_SLUG_PREFIX = "phase2-"
@@ -94,7 +93,7 @@ class FakeProvider:
 
     async def complete(self, request: Any) -> Any:
         """Return a canned completion, or raise the configured error."""
-        from apps.api.llm.base import CompletionResult, TokenUsage
+        from app.llm.base import CompletionResult, TokenUsage
 
         self.calls += 1
         if self._error is not None:
@@ -118,7 +117,7 @@ class FakeStreamingProvider:
 
     async def complete(self, request: Any) -> Any:
         """Return the full canned completion (non-streaming fallback)."""
-        from apps.api.llm.base import CompletionResult, TokenUsage
+        from app.llm.base import CompletionResult, TokenUsage
 
         self.calls += 1
         return CompletionResult(
@@ -162,8 +161,8 @@ def _fresh_pooled_clients() -> Iterator[None]:
     Yields:
         None: Control to the test body.
     """
-    from apps.api.db.engine import get_engine, get_sessionmaker
-    from apps.api.db.redis import get_redis
+    from app.db.engine import get_engine, get_sessionmaker
+    from app.db.redis import get_redis
 
     for cached in (get_engine, get_sessionmaker, get_redis):
         cached.cache_clear()

@@ -5,9 +5,8 @@ from __future__ import annotations
 import uuid
 
 import pytest
-
-from apps.api.config import Settings
-from apps.api.llm.base import (
+from app.config import Settings
+from app.llm.base import (
     CompletionRequest,
     CompletionResult,
     ProviderRejected,
@@ -15,12 +14,12 @@ from apps.api.llm.base import (
     TokenUsage,
     call_with_retries,
 )
-from apps.api.llm.cache import cache_key
-from apps.api.llm.circuit_breaker import CostCeilingExceeded, CostCircuitBreaker
-from apps.api.llm.factory import active_model, build_provider
-from apps.api.prompts.registry import PromptRegistry, PromptVersion, get_registry
-from apps.api.rag.generator import validate_citations
-from apps.api.rag.retriever import RetrievedChunk
+from app.llm.cache import cache_key
+from app.llm.circuit_breaker import CostCeilingExceeded, CostCircuitBreaker
+from app.llm.factory import active_model, build_provider
+from app.prompts.registry import PromptRegistry, PromptVersion, get_registry
+from app.rag.generator import validate_citations
+from app.rag.retriever import RetrievedChunk
 
 CHUNK_IDS = [uuid.UUID(int=1), uuid.UUID(int=2)]
 
@@ -105,7 +104,7 @@ def test_factory_resolves_providers_and_models() -> None:
 
 async def test_call_with_retries_recovers_then_gives_up(monkeypatch: pytest.MonkeyPatch) -> None:
     """Retries on ProviderUnavailable, succeeds, and gives up after the ceiling."""
-    from apps.api.llm import base
+    from app.llm import base
 
     async def _no_sleep(_seconds: float) -> None:
         return None

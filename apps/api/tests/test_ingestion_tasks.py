@@ -11,15 +11,15 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 
+from app.config import get_settings
+from app.db.engine import get_sessionmaker
+from app.db.models import Document, IngestionRun, Source
+from app.ingestion.adapters.base import RawDocument, SourceContext, SourceFetchError
+from app.ingestion.registry import add_source, create_plugin
+from app.ingestion.tasks import ingest_source
 from sqlalchemy import select
 
-from apps.api.config import get_settings
-from apps.api.db.engine import get_sessionmaker
-from apps.api.db.models import Document, IngestionRun, Source
-from apps.api.ingestion.adapters.base import RawDocument, SourceContext, SourceFetchError
-from apps.api.ingestion.registry import add_source, create_plugin
-from apps.api.ingestion.tasks import ingest_source
-from apps.api.tests.conftest import FakeEmbeddingClient, play
+from tests.conftest import FakeEmbeddingClient, play
 
 SLUG = "swift-menu-duplicator"
 _EMBED = FakeEmbeddingClient(get_settings().embedding_dimensions)

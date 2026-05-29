@@ -48,6 +48,14 @@ class Settings(BaseSettings):
         openai_api_key: OpenAI credential, required for embeddings and the OpenAI provider.
         ollama_base_url: Base URL of a local Ollama server.
         default_provider: Provider the factory resolves when none is requested.
+        anthropic_model: Claude model id used for generation.
+        openai_model: OpenAI model id used for generation.
+        ollama_model: Ollama model id used for generation.
+        llm_timeout_seconds: Per-call timeout for generation providers.
+        llm_max_retries: Bounded retry count for transient provider failures.
+        llm_max_output_tokens: Max completion tokens requested per generation.
+        cost_per_1k_input_usd: Price per 1k input tokens (cost breaker, FR-GN-5).
+        cost_per_1k_output_usd: Price per 1k output tokens (cost breaker, FR-GN-5).
         github_token: Optional GitHub token raising the REST rate limit (NFR-SC-1).
         github_api_url: Base URL of the GitHub REST API.
         wporg_api_url: Base URL of the WordPress.org API host.
@@ -102,6 +110,16 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     ollama_base_url: str = "http://localhost:11434"
     default_provider: ProviderName = "anthropic"
+
+    # --- Generation (§2.5) ---
+    anthropic_model: str = "claude-sonnet-4-6"
+    openai_model: str = "gpt-4o-mini"
+    ollama_model: str = "llama3.1"
+    llm_timeout_seconds: float = Field(default=60.0, gt=0.0)
+    llm_max_retries: int = Field(default=3, ge=0)
+    llm_max_output_tokens: int = Field(default=1024, ge=1)
+    cost_per_1k_input_usd: float = Field(default=0.003, ge=0.0)
+    cost_per_1k_output_usd: float = Field(default=0.015, ge=0.0)
 
     # --- Ingestion sources (§2.2, FR-IN-*) ---
     github_token: SecretStr | None = None

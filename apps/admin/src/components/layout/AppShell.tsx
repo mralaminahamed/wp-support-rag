@@ -2,6 +2,7 @@
 import { Boxes, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
 import type { ComponentType } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { ConnectionBadge } from "./ConnectionBadge";
 import { ThemeToggle } from "./ThemeToggle";
@@ -18,7 +19,7 @@ export function AppShell() {
     <div className="grid min-h-screen grid-cols-[232px_1fr] max-md:grid-cols-1">
       <aside className="sticky top-0 flex h-screen flex-col gap-1.5 border-r border-border bg-surface p-3.5 max-md:hidden">
         <div className="flex items-center gap-2.5 px-2 pb-4 pt-1 font-bold">
-          <span className="h-5.5 w-5.5 rounded-md bg-accent" style={{ width: 22, height: 22 }} />
+          <Logo size={24} />
           <span>Support RAG</span>
         </div>
         {NAV.map(({ to, label, icon: Icon }) => (

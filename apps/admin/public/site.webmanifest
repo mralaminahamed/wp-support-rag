@@ -1,0 +1,9 @@
+{
+  "name": "WP Support RAG — Admin",
+  "short_name": "Support RAG",
+  "description": "Admin console for the WP Plugin Support Desk RAG.",
+  "icons": [{ "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any" }],
+  "theme_color": "#6366f1",
+  "background_color": "#0d1117",
+  "display": "standalone"
+}

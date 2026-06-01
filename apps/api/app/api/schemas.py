@@ -326,3 +326,174 @@ class LLMConfigUpdate(BaseModel):
 
     provider: str
     model: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Auth schemas
+# ---------------------------------------------------------------------------
+
+
+class LoginRequest(BaseModel):
+    """Credentials for POST /api/v1/auth/login.
+
+    Attributes:
+        email: User email address.
+        password: Plain-text password (transmitted over TLS only).
+    """
+
+    email: str = Field(max_length=320)
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class RegisterRequest(BaseModel):
+    """Credentials for POST /api/v1/auth/register (open registration).
+
+    Attributes:
+        email: Desired email address.
+        password: Desired password (min 8 chars).
+    """
+
+    email: str = Field(max_length=320)
+    password: str = Field(min_length=8, max_length=1024)
+
+
+class AcceptInviteRequest(BaseModel):
+    """Body for POST /api/v1/auth/accept-invite.
+
+    Attributes:
+        token: Raw invite token UUID from the invite URL.
+        password: Desired password (min 8 chars).
+    """
+
+    token: str = Field(min_length=1, max_length=256)
+    password: str = Field(min_length=8, max_length=1024)
+
+
+class AuthUserResponse(BaseModel):
+    """User identity returned after login / register / me.
+
+    Attributes:
+        id: User UUID.
+        email: User email.
+        roles: Role names held by the user.
+        permissions: Effective permission strings.
+        is_active: Whether the account is active.
+    """
+
+    id: uuid.UUID
+    email: str
+    roles: list[str]
+    permissions: list[str]
+    is_active: bool
+
+
+class UserListItem(BaseModel):
+    """Summary row for GET /api/v1/admin/users.
+
+    Attributes:
+        id: User UUID.
+        email: User email.
+        roles: Role names.
+        is_active: Account status.
+        created_at: ISO creation timestamp.
+    """
+
+    id: uuid.UUID
+    email: str
+    roles: list[str]
+    is_active: bool
+    created_at: str
+
+
+class CreateUserRequest(BaseModel):
+    """Body for POST /api/v1/admin/users.
+
+    Attributes:
+        email: New user email.
+        password: Initial password (min 8 chars).
+        role_ids: UUIDs of roles to assign.
+    """
+
+    email: str = Field(max_length=320)
+    password: str = Field(min_length=8, max_length=1024)
+    role_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+class PatchUserRequest(BaseModel):
+    """Body for PATCH /api/v1/admin/users/{user_id}.
+
+    Attributes:
+        is_active: Set account active/inactive.
+        role_ids: Replace the user's roles with this list.
+    """
+
+    is_active: bool | None = None
+    role_ids: list[uuid.UUID] | None = None
+
+
+class InviteRequest(BaseModel):
+    """Body for POST /api/v1/admin/users/invite.
+
+    Attributes:
+        email: Invitee email address.
+        role_id: Role assigned to the new account on acceptance.
+    """
+
+    email: str = Field(max_length=320)
+    role_id: uuid.UUID
+
+
+class InviteResponse(BaseModel):
+    """Response from POST /api/v1/admin/users/invite.
+
+    Attributes:
+        token: Raw invite token (caller must transmit to invitee).
+        invite_url: Full URL if WPRAG_ADMIN_URL is configured, else None.
+    """
+
+    token: str
+    invite_url: str | None = None
+
+
+class RoleSummary(BaseModel):
+    """A role with its permission list for admin listing.
+
+    Attributes:
+        id: Role UUID.
+        name: Role name.
+        description: Human-readable description.
+        is_system: Whether this is a built-in undeletable role.
+        permissions: Permission strings granted to this role.
+    """
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    is_system: bool
+    permissions: list[str]
+
+
+class CreateRoleRequest(BaseModel):
+    """Body for POST /api/v1/admin/roles.
+
+    Attributes:
+        name: Unique role name.
+        description: Optional description.
+        permissions: Permission strings to grant.
+    """
+
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = None
+    permissions: list[str] = Field(default_factory=list)
+
+
+class PatchRoleRequest(BaseModel):
+    """Body for PATCH /api/v1/admin/roles/{role_id}.
+
+    Attributes:
+        description: Updated description (system roles: allowed).
+        permissions: Replacement permission list.
+    """
+
+    description: str | None = None
+    permissions: list[str] | None = None

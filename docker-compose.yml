@@ -27,6 +27,7 @@ x-app-env: &app-env
   WPRAG_OPENAI_API_KEY: ${WPRAG_OPENAI_API_KEY:-}
   WPRAG_ANTHROPIC_API_KEY: ${WPRAG_ANTHROPIC_API_KEY:-}
   WPRAG_GITHUB_TOKEN: ${WPRAG_GITHUB_TOKEN:-}
+  WPRAG_CORS_ORIGIN_REGEX: ${WPRAG_CORS_ORIGIN_REGEX:-'http://192\.168\.\d+\.\d+(:\d+)?'}
 
 services:
   postgres:
@@ -49,7 +50,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redisdata:/data
     healthcheck:

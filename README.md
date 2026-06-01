@@ -76,7 +76,9 @@ WPRAG_DEFAULT_PROVIDER=ollama   # generation provider: anthropic | openai | olla
 WPRAG_EMBEDDING_PROVIDER=ollama # embeddings backend: openai (default) | ollama
 WPRAG_OLLAMA_BASE_URL=http://host.docker.internal:11434  # reach a host Ollama from Docker
 WPRAG_GITHUB_TOKEN=...          # raises the GitHub rate limit + enables private-repo ingestion
-WPRAG_ADMIN_BEARER_TOKEN=...    # admin endpoints
+WPRAG_JWT_SECRET=...            # HS256 signing key — generate with: openssl rand -hex 32
+WPRAG_BOOTSTRAP_EMAIL=admin@example.com   # first super_admin account (seeded on first boot)
+WPRAG_BOOTSTRAP_PASSWORD=...             # password for the bootstrap account
 ```
 
 For a fully-local setup, run [Ollama](https://ollama.com) on the host
@@ -84,15 +86,11 @@ For a fully-local setup, run [Ollama](https://ollama.com) on the host
 then `alembic upgrade head` and re-ingest so the embedding column matches the
 local model's width. No OpenAI/Anthropic key is then required.
 
-The admin token is an opaque, high-entropy secret you generate (no fixed format);
-the API compares the `Authorization` header to `Bearer <token>` exactly:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"   # or: openssl rand -base64 32
-```
-
-Keep it out of version control (`.env` is git-ignored) and supply it via the
-environment in production. Without it, every `/api/v1/admin/*` endpoint returns 401.
+**Admin authentication** uses HTTP-only cookie JWT sessions (no bearer tokens).
+On first boot, when the users table is empty, the service seeds a `super_admin`
+account using `WPRAG_BOOTSTRAP_EMAIL` / `WPRAG_BOOTSTRAP_PASSWORD`. Log in at
+`http://localhost:8081/login`. All subsequent admin accounts are created from the
+Users page or via invite links.
 
 ## Embed the widget
 
@@ -112,29 +110,52 @@ for a working external-page demo.
 
 The `admin` app (`:8081`, `apps/admin`) is a React console for operating the service:
 
+- **Login** — email + password form; sessions use HTTP-only cookies (no localStorage).
 - **Dashboard** — service health, query metrics, corpus coverage, and a recent-activity feed.
 - **Plugins** — searchable/sortable registry; expand a plugin to see its sources and trigger ingestion.
 - **Playground** — a chat-style interface for grounded, cited Q&A (each turn is an independent RAG query, streamed).
+- **Users** — create accounts, send invite links (48 h TTL), manage roles and per-user permission overrides. Visible to users with `users:read`.
 - **Settings** — switch the generation and embedding provider/model at runtime (with an Ollama model picker), test the API connection, and set your profile (name + email → Gravatar avatar). Light/dark theme.
 
 ## API
 
-| Method | Path | Auth | Purpose |
+**Auth** uses HTTP-only cookie JWT sessions. The `access_token` cookie (15 min TTL)
+carries a signed JWT with the user's effective permission set embedded. A
+`refresh_token` cookie (7 day TTL, scoped to `/api/v1/auth/refresh`) silently
+reissues the access token. No `Authorization` header is needed.
+
+**Permissions** are fine-grained strings: `plugins:read`, `plugins:write`,
+`ingestion:trigger`, `metrics:read`, `settings:read`, `settings:write`,
+`users:read`, `users:write`, `users:invite`. System roles (`super_admin`, `admin`,
+`viewer`) bundle these; per-user overrides add or remove individual permissions.
+
+| Method | Path | Permission | Purpose |
 |---|---|---|---|
 | GET | `/health` | — | Liveness + DB/Redis probes |
 | POST | `/api/v1/query` | per-IP rate limit | Ask a question; returns a cited answer + `query_id` |
 | POST | `/api/v1/query/stream` | per-IP rate limit | Same, streamed as SSE: `token` events then a `done` event |
 | POST | `/api/v1/feedback` | per-IP rate limit | Bind `helpful`/`not_helpful` to a `query_id` |
-| POST | `/api/v1/admin/plugins` | bearer | Register a plugin and its sources |
-| GET | `/api/v1/admin/plugins` | bearer | List registered plugins with source counts |
-| GET | `/api/v1/admin/plugins/{slug}/sources` | bearer | List a plugin's sources and ingestion state |
-| POST | `/api/v1/admin/ingest` | bearer | Trigger ingestion for every plugin's sources |
-| POST | `/api/v1/admin/ingest/{slug}` | bearer | Trigger ingestion (one Celery task per source) |
-| GET | `/api/v1/admin/metrics` | bearer | Deflection, helpful, cache-hit, degraded rates, mean cost, p95 latency (optional `?plugin_slug=`) |
-| GET | `/api/v1/admin/queries` | bearer | Recent queries for the activity feed (`?limit=`) |
-| GET·PUT·DELETE | `/api/v1/admin/llm` | bearer | Read / override / reset the active generation provider+model |
-| PUT·DELETE | `/api/v1/admin/llm/embedding` | bearer | Override / reset the embedding provider+model (same vector width only) |
-| GET | `/api/v1/admin/ollama/models` | bearer | List models available on the configured Ollama server |
+| POST | `/api/v1/auth/login` | — | Email + password → sets `access_token` + `refresh_token` cookies |
+| POST | `/api/v1/auth/refresh` | refresh cookie | Reissue access token |
+| POST | `/api/v1/auth/logout` | — | Clear auth cookies |
+| GET | `/api/v1/auth/me` | cookie | Current user info + effective permissions |
+| POST | `/api/v1/auth/register` | — (if `WPRAG_ALLOW_REGISTRATION=true`) | Self-registration |
+| POST | `/api/v1/auth/accept-invite` | — | Accept an invite token and set password |
+| GET·POST | `/api/v1/admin/users` | `users:read` / `users:write` | List / create users |
+| GET·PATCH·DELETE | `/api/v1/admin/users/{id}` | `users:read` / `users:write` | Get / update / delete a user |
+| POST | `/api/v1/admin/users/{id}/invite` | `users:invite` | Send an invite link (48 h TTL) |
+| GET·POST | `/api/v1/admin/roles` | `users:read` / `users:write` | List / create roles |
+| GET·PATCH·DELETE | `/api/v1/admin/roles/{id}` | `users:read` / `users:write` | Get / update / delete a role |
+| POST | `/api/v1/admin/plugins` | `plugins:write` | Register a plugin and its sources |
+| GET | `/api/v1/admin/plugins` | `plugins:read` | List registered plugins with source counts |
+| GET | `/api/v1/admin/plugins/{slug}/sources` | `plugins:read` | List a plugin's sources and ingestion state |
+| POST | `/api/v1/admin/ingest` | `ingestion:trigger` | Trigger ingestion for every plugin's sources |
+| POST | `/api/v1/admin/ingest/{slug}` | `ingestion:trigger` | Trigger ingestion (one Celery task per source) |
+| GET | `/api/v1/admin/metrics` | `metrics:read` | Deflection, helpful, cache-hit, degraded rates, mean cost, p95 latency (optional `?plugin_slug=`) |
+| GET | `/api/v1/admin/queries` | `metrics:read` | Recent queries for the activity feed (`?limit=`) |
+| GET·PUT·DELETE | `/api/v1/admin/llm` | `settings:read` / `settings:write` | Read / override / reset the active generation provider+model |
+| PUT·DELETE | `/api/v1/admin/llm/embedding` | `settings:write` | Override / reset the embedding provider+model (same vector width only) |
+| GET | `/api/v1/admin/ollama/models` | `settings:read` | List models available on the configured Ollama server |
 
 The widget streams from `/api/v1/query/stream` where available and falls back to
 `/api/v1/query`. Streamed tokens are provisional; the closing `done` event carries
@@ -143,7 +164,9 @@ the citation-validated answer.
 ## Production deployment
 
 ```bash
-DOMAIN=support.example.com POSTGRES_PASSWORD=… WPRAG_ADMIN_BEARER_TOKEN=… \
+DOMAIN=support.example.com POSTGRES_PASSWORD=… \
+WPRAG_JWT_SECRET=$(openssl rand -hex 32) \
+WPRAG_BOOTSTRAP_EMAIL=admin@example.com WPRAG_BOOTSTRAP_PASSWORD=… \
 WPRAG_OPENAI_API_KEY=… WPRAG_ANTHROPIC_API_KEY=… \
 docker compose -f docker-compose.prod.yml up -d
 ```

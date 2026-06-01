@@ -17,7 +17,7 @@ from redis.asyncio import Redis
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_redis_dep, get_settings_dep, require_admin
+from app.api.deps import get_redis_dep, get_settings_dep, require_permission
 from app.api.schemas import (
     EmbeddingConfig,
     EmbeddingConfigUpdate,
@@ -61,7 +61,7 @@ from app.llm.runtime import (
     set_override,
 )
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin"], dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
 def _percentile(values: list[int], pct: float) -> int:
@@ -128,6 +128,7 @@ async def _llm_config(redis: Redis, settings: Settings) -> LLMConfigResponse:
 
 @router.get("/llm", response_model=LLMConfigResponse)
 async def get_llm_config(
+    _: object = Depends(require_permission("settings:read")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
 ) -> LLMConfigResponse:
@@ -146,6 +147,7 @@ async def get_llm_config(
 @router.put("/llm", response_model=LLMConfigResponse)
 async def set_llm_config(
     payload: LLMConfigUpdate,
+    _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
 ) -> LLMConfigResponse:
@@ -179,6 +181,7 @@ async def set_llm_config(
 
 @router.delete("/llm", response_model=LLMConfigResponse)
 async def reset_llm_config(
+    _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
 ) -> LLMConfigResponse:
@@ -198,6 +201,7 @@ async def reset_llm_config(
 @router.put("/llm/embedding", response_model=LLMConfigResponse)
 async def set_embedding_config(
     payload: EmbeddingConfigUpdate,
+    _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
 ) -> LLMConfigResponse:
@@ -243,6 +247,7 @@ async def set_embedding_config(
 
 @router.delete("/llm/embedding", response_model=LLMConfigResponse)
 async def reset_embedding_config(
+    _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
 ) -> LLMConfigResponse:
@@ -261,7 +266,9 @@ async def reset_embedding_config(
 
 @router.get("/queries", response_model=list[RecentQuery])
 async def recent_queries(
-    limit: int = 20, session: AsyncSession = Depends(get_session)
+    _: object = Depends(require_permission("metrics:read")),
+    limit: int = 20,
+    session: AsyncSession = Depends(get_session),
 ) -> list[RecentQuery]:
     """Return the most recently logged queries for the activity feed (FR-FB-1/3).
 
@@ -297,6 +304,7 @@ async def recent_queries(
 
 @router.get("/ollama/models", response_model=OllamaModelsResponse)
 async def list_ollama_models(
+    _: object = Depends(require_permission("settings:read")),
     settings: Settings = Depends(get_settings_dep),
 ) -> OllamaModelsResponse:
     """List models available on the configured Ollama server (FR-GN-3).
@@ -325,7 +333,9 @@ async def list_ollama_models(
 
 @router.post("/plugins", status_code=status.HTTP_201_CREATED)
 async def register_plugin(
-    payload: PluginRegistration, session: AsyncSession = Depends(get_session)
+    payload: PluginRegistration,
+    _: object = Depends(require_permission("plugins:write")),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
     """Register or reconcile a plugin and its sources (FR-PM-1/2).
 
@@ -350,6 +360,7 @@ async def register_plugin(
 
 @router.get("/plugins", response_model=list[PluginSummary])
 async def list_registered_plugins(
+    _: object = Depends(require_permission("plugins:read")),
     session: AsyncSession = Depends(get_session),
 ) -> list[PluginSummary]:
     """List registered plugins with their source counts (FR-PM-1).
@@ -379,7 +390,9 @@ async def list_registered_plugins(
 
 @router.get("/plugins/{plugin_slug}/sources", response_model=list[SourceSummary])
 async def list_plugin_sources(
-    plugin_slug: str, session: AsyncSession = Depends(get_session)
+    plugin_slug: str,
+    _: object = Depends(require_permission("plugins:read")),
+    session: AsyncSession = Depends(get_session),
 ) -> list[SourceSummary]:
     """List a plugin's sources and their ingestion state (FR-PM-2/4).
 
@@ -410,7 +423,10 @@ async def list_plugin_sources(
 
 
 @router.post("/ingest", response_model=IngestAllResponse)
-async def trigger_ingest_all(session: AsyncSession = Depends(get_session)) -> IngestAllResponse:
+async def trigger_ingest_all(
+    _: object = Depends(require_permission("ingestion:trigger")),
+    session: AsyncSession = Depends(get_session),
+) -> IngestAllResponse:
     """Dispatch ingestion for every plugin's enabled sources (FR-IN-6/7).
 
     One Celery task is enqueued per ``(plugin, source)`` so a failing source never
@@ -440,7 +456,9 @@ async def trigger_ingest_all(session: AsyncSession = Depends(get_session)) -> In
 
 @router.post("/ingest/{plugin_slug}", response_model=IngestTriggerResponse)
 async def trigger_ingest(
-    plugin_slug: str, session: AsyncSession = Depends(get_session)
+    plugin_slug: str,
+    _: object = Depends(require_permission("ingestion:trigger")),
+    session: AsyncSession = Depends(get_session),
 ) -> IngestTriggerResponse:
     """Dispatch ingestion for every enabled source of a plugin (FR-IN-6/7).
 
@@ -467,7 +485,9 @@ async def trigger_ingest(
 
 @router.get("/metrics", response_model=MetricsResponse)
 async def metrics(
-    plugin_slug: str | None = None, session: AsyncSession = Depends(get_session)
+    _: object = Depends(require_permission("metrics:read")),
+    plugin_slug: str | None = None,
+    session: AsyncSession = Depends(get_session),
 ) -> MetricsResponse:
     """Return aggregate operational metrics, optionally per plugin (FR-FB-3).
 

@@ -11,10 +11,12 @@ Author: Al Amin Ahamed.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 from redis.asyncio import Redis
 
+from app.auth.jwt import UserClaims, verify_jwt
 from app.config import Settings, get_settings
 from app.db.redis import get_redis
 from app.llm.base import LLMProvider
@@ -148,23 +150,38 @@ async def rate_limit(
     return ip_hash
 
 
-async def require_admin(
-    authorization: str | None = Header(default=None),
-    settings: Settings = Depends(get_settings_dep),
-) -> None:
-    """Require a valid admin bearer token (FR-DL-4, NFR-SC-2).
+def require_permission(permission: str) -> Callable:
+    """Return a FastAPI dependency that enforces a cookie-based permission check.
+
+    The dependency reads the ``access_token`` HTTP-only cookie, validates the
+    JWT, and checks that the embedded permissions list contains ``permission``.
 
     Args:
-        authorization: The ``Authorization`` header value.
-        settings: Settings holding the configured admin token.
+        permission: The permission string required (e.g. ``"plugins:write"``).
+
+    Returns:
+        Callable: An async FastAPI dependency returning the decoded UserClaims.
 
     Raises:
-        HTTPException: 401 when the token is missing, misconfigured, or invalid.
+        HTTPException: 401 when no valid cookie is present; 403 when the
+            authenticated user lacks the required permission.
     """
-    if settings.admin_bearer_token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="admin auth not configured"
-        )
-    expected = f"Bearer {settings.admin_bearer_token.get_secret_value()}"
-    if authorization != expected:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token")
+    async def _dep(
+        request: Request,
+        settings: Settings = Depends(get_settings_dep),
+    ) -> UserClaims:
+        token = request.cookies.get("access_token")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="not authenticated",
+            )
+        claims = verify_jwt(token, secret=settings.jwt_secret.get_secret_value())
+        if permission not in claims.permissions:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"permission required: {permission}",
+            )
+        return claims
+
+    return _dep

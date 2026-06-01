@@ -11,9 +11,12 @@ x-app-env: &app-env
   WPRAG_DATABASE_DSN: postgresql+asyncpg://wprag:wprag@postgres:5432/wprag
   WPRAG_REDIS_DSN: redis://redis:6379/0
   WPRAG_LOG_LEVEL: INFO
-  # Dev-only admin token so /api/v1/admin/* is usable out of the box; override
-  # via the WPRAG_ADMIN_BEARER_TOKEN env var. Never use this value in production.
-  WPRAG_ADMIN_BEARER_TOKEN: ${WPRAG_ADMIN_BEARER_TOKEN:-dev-admin-token}
+  # JWT auth + first-boot bootstrap. Change JWT secret in production.
+  WPRAG_JWT_SECRET: ${WPRAG_JWT_SECRET:-dev-jwt-secret-change-in-prod}
+  WPRAG_BOOTSTRAP_EMAIL: ${WPRAG_BOOTSTRAP_EMAIL:-admin@example.com}
+  WPRAG_BOOTSTRAP_PASSWORD: ${WPRAG_BOOTSTRAP_PASSWORD:-admin123}
+  WPRAG_ALLOW_REGISTRATION: ${WPRAG_ALLOW_REGISTRATION:-false}
+  WPRAG_ADMIN_URL: ${WPRAG_ADMIN_URL:-http://localhost:8081}
   # Generation + embedding provider selection. Defaults run fully local against a
   # host Ollama (reached via host.docker.internal); override in the root .env.
   WPRAG_DEFAULT_PROVIDER: ${WPRAG_DEFAULT_PROVIDER:-ollama}

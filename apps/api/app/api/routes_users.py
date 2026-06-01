@@ -1,0 +1,301 @@
+"""User and role management endpoints for the admin console.
+
+All endpoints require cookie-based authentication; access is gated by
+require_permission with the appropriate permission string.
+
+Author: Al Amin Ahamed.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import logging
+import uuid
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_settings_dep, require_permission
+from app.api.schemas import (
+    AuthUserResponse,
+    CreateRoleRequest,
+    CreateUserRequest,
+    InviteRequest,
+    InviteResponse,
+    PatchRoleRequest,
+    PatchUserRequest,
+    RoleSummary,
+    UserListItem,
+)
+from app.auth.password import hash_password
+from app.auth.permissions import resolve_permissions
+from app.config import Settings
+from app.db.engine import get_session
+from app.db.models import InviteToken, Role, RolePermission, User, UserRole
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/v1/admin", tags=["users"])
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers (module-level so tests can patch them)
+# ---------------------------------------------------------------------------
+
+def _effective_permissions(user: User) -> list[str]:
+    role_perm_lists = [[rp.permission for rp in role.permissions] for role in user.roles]
+    overrides = [(up.permission, up.granted) for up in user.permissions]
+    return sorted(resolve_permissions(role_perm_lists, overrides))
+
+
+def _user_response(user: User) -> AuthUserResponse:
+    return AuthUserResponse(
+        id=user.id,
+        email=user.email,
+        roles=[r.name for r in user.roles],
+        permissions=_effective_permissions(user),
+        is_active=user.is_active,
+    )
+
+
+async def _list_users(session: AsyncSession) -> list[User]:
+    return list((await session.execute(select(User).order_by(User.created_at))).scalars().all())
+
+
+async def _create_user(
+    session: AsyncSession, email: str, password: str, role_ids: list[uuid.UUID]
+) -> User:
+    if (await session.execute(select(User).where(User.email == email))).scalar_one_or_none():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="email already registered")
+    user = User(email=email, password_hash=hash_password(password))
+    session.add(user)
+    await session.flush()
+    for rid in role_ids:
+        session.add(UserRole(user_id=user.id, role_id=rid))
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def _delete_user(session: AsyncSession, user_id: uuid.UUID, caller_id: str) -> None:
+    if str(user_id) == caller_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="cannot delete own account")
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    await session.delete(user)
+    await session.commit()
+
+
+async def _list_roles(session: AsyncSession) -> list[Role]:
+    return list((await session.execute(select(Role).order_by(Role.name))).scalars().all())
+
+
+# ---------------------------------------------------------------------------
+# User endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/users", response_model=list[UserListItem])
+async def list_users(
+    _: None = Depends(require_permission("users:read")),
+    session: AsyncSession = Depends(get_session),
+) -> list[UserListItem]:
+    """List all admin-console user accounts."""
+    users = await _list_users(session)
+    return [
+        UserListItem(
+            id=u.id,
+            email=u.email,
+            roles=[r.name for r in u.roles],
+            is_active=u.is_active,
+            created_at=u.created_at.isoformat(),
+        )
+        for u in users
+    ]
+
+
+@router.post("/users", status_code=status.HTTP_201_CREATED, response_model=AuthUserResponse)
+async def create_user(
+    payload: CreateUserRequest,
+    _: None = Depends(require_permission("users:write")),
+    session: AsyncSession = Depends(get_session),
+) -> AuthUserResponse:
+    """Create a new user account with assigned roles."""
+    user = await _create_user(session, payload.email, payload.password, payload.role_ids)
+    return _user_response(user)
+
+
+@router.get("/users/{user_id}", response_model=AuthUserResponse)
+async def get_user(
+    user_id: uuid.UUID,
+    _: None = Depends(require_permission("users:read")),
+    session: AsyncSession = Depends(get_session),
+) -> AuthUserResponse:
+    """Return a single user by ID."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    await session.refresh(user)
+    return _user_response(user)
+
+
+@router.patch("/users/{user_id}", response_model=AuthUserResponse)
+async def patch_user(
+    user_id: uuid.UUID,
+    payload: PatchUserRequest,
+    request: Request,
+    claims=Depends(require_permission("users:write")),
+    session: AsyncSession = Depends(get_session),
+) -> AuthUserResponse:
+    """Update a user's active status or role assignments."""
+    if str(user_id) == claims.sub and payload.is_active is False:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="cannot deactivate own account")
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    if payload.is_active is not None:
+        user.is_active = payload.is_active
+    if payload.role_ids is not None:
+        existing = list((await session.execute(
+            select(UserRole).where(UserRole.user_id == user_id)
+        )).scalars().all())
+        for ur in existing:
+            await session.delete(ur)
+        for rid in payload.role_ids:
+            session.add(UserRole(user_id=user_id, role_id=rid))
+    await session.commit()
+    await session.refresh(user)
+    return _user_response(user)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: uuid.UUID,
+    claims=Depends(require_permission("users:write")),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Delete a user account (cannot delete own account)."""
+    await _delete_user(session, user_id, claims.sub)
+
+
+# ---------------------------------------------------------------------------
+# Invite endpoint
+# ---------------------------------------------------------------------------
+
+@router.post("/users/invite", response_model=InviteResponse)
+async def invite_user(
+    payload: InviteRequest,
+    claims=Depends(require_permission("users:invite")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings_dep),
+) -> InviteResponse:
+    """Generate a 48-hour invite token for a prospective user."""
+    raw = str(uuid.uuid4())
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    invite = InviteToken(
+        email=payload.email,
+        token_hash=token_hash,
+        role_id=payload.role_id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+    )
+    session.add(invite)
+    await session.commit()
+    invite_url: str | None = None
+    if settings.admin_url:
+        invite_url = f"{settings.admin_url.rstrip('/')}/accept-invite?token={raw}"
+    return InviteResponse(token=raw, invite_url=invite_url)
+
+
+# ---------------------------------------------------------------------------
+# Role endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/roles", response_model=list[RoleSummary])
+async def list_roles(
+    _: None = Depends(require_permission("users:read")),
+    session: AsyncSession = Depends(get_session),
+) -> list[RoleSummary]:
+    """List all roles with their permission sets."""
+    roles = await _list_roles(session)
+    return [
+        RoleSummary(
+            id=r.id,
+            name=r.name,
+            description=r.description,
+            is_system=r.is_system,
+            permissions=[rp.permission for rp in r.permissions],
+        )
+        for r in roles
+    ]
+
+
+@router.post("/roles", status_code=status.HTTP_201_CREATED, response_model=RoleSummary)
+async def create_role(
+    payload: CreateRoleRequest,
+    _: None = Depends(require_permission("users:write")),
+    session: AsyncSession = Depends(get_session),
+) -> RoleSummary:
+    """Create a new custom role."""
+    role = Role(name=payload.name, description=payload.description)
+    session.add(role)
+    await session.flush()
+    for perm in payload.permissions:
+        session.add(RolePermission(role_id=role.id, permission=perm))
+    await session.commit()
+    await session.refresh(role)
+    return RoleSummary(
+        id=role.id,
+        name=role.name,
+        description=role.description,
+        is_system=role.is_system,
+        permissions=[rp.permission for rp in role.permissions],
+    )
+
+
+@router.patch("/roles/{role_id}", response_model=RoleSummary)
+async def patch_role(
+    role_id: uuid.UUID,
+    payload: PatchRoleRequest,
+    _: None = Depends(require_permission("users:write")),
+    session: AsyncSession = Depends(get_session),
+) -> RoleSummary:
+    """Update a role's description or permissions (cannot rename system roles)."""
+    role = await session.get(Role, role_id)
+    if role is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="role not found")
+    if payload.description is not None:
+        role.description = payload.description
+    if payload.permissions is not None:
+        existing = list((await session.execute(
+            select(RolePermission).where(RolePermission.role_id == role_id)
+        )).scalars().all())
+        for rp in existing:
+            await session.delete(rp)
+        for perm in payload.permissions:
+            session.add(RolePermission(role_id=role_id, permission=perm))
+    await session.commit()
+    await session.refresh(role)
+    return RoleSummary(
+        id=role.id,
+        name=role.name,
+        description=role.description,
+        is_system=role.is_system,
+        permissions=[rp.permission for rp in role.permissions],
+    )
+
+
+@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_role(
+    role_id: uuid.UUID,
+    _: None = Depends(require_permission("users:write")),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Delete a custom role (system roles cannot be deleted)."""
+    role = await session.get(Role, role_id)
+    if role is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="role not found")
+    if role.is_system:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="cannot delete system role")
+    await session.delete(role)
+    await session.commit()

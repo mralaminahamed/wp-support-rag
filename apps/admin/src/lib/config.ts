@@ -2,7 +2,6 @@
 // Author: Al Amin Ahamed.
 
 const API_BASE_KEY = "wprag_api_base";
-const TOKEN_KEY = "wprag_admin_token";
 const THEME_KEY = "wprag_theme";
 
 const DEFAULT_API_BASE =
@@ -14,13 +13,6 @@ export function getApiBase(): string {
 }
 export function setApiBase(value: string): void {
   localStorage.setItem(API_BASE_KEY, value);
-}
-
-export function getToken(): string {
-  return localStorage.getItem(TOKEN_KEY) ?? "";
-}
-export function setToken(value: string): void {
-  localStorage.setItem(TOKEN_KEY, value);
 }
 
 export type Theme = "light" | "dark";

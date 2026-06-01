@@ -65,3 +65,26 @@ def test_cors_origin_regex_rejects_invalid_pattern() -> None:
     """An invalid regex pattern raises ValidationError at instantiation."""
     with pytest.raises(ValidationError):
         Settings(cors_origin_regex=r"[")
+
+
+def test_jwt_secret_field_exists() -> None:
+    from pydantic import SecretStr
+    s = Settings(jwt_secret="mysecret")  # type: ignore[call-arg]
+    assert isinstance(s.jwt_secret, SecretStr)
+    assert s.jwt_secret.get_secret_value() == "mysecret"
+
+
+def test_admin_bearer_token_removed() -> None:
+    s = Settings()
+    assert not hasattr(s, "admin_bearer_token")
+
+
+def test_allow_registration_defaults_false() -> None:
+    s = Settings()
+    assert s.allow_registration is False
+
+
+def test_bootstrap_fields_default_none() -> None:
+    s = Settings()
+    assert s.bootstrap_email is None
+    assert s.bootstrap_password is None

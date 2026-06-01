@@ -13,10 +13,11 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, RedisDsn, SecretStr, model_validator
+from pydantic import Field, RedisDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ProviderName = Literal["anthropic", "openai", "ollama"]
@@ -92,6 +93,7 @@ class Settings(BaseSettings):
         rate_limit_window_seconds: Length of the rate-limit window.
         admin_bearer_token: Bearer token guarding admin endpoints (NFR-SC-2).
         cors_origins: Origins permitted to call the public query API from the widget.
+        cors_origin_regex: Regex matched against Origin header (Starlette allow_origin_regex).
     """
 
     model_config = SettingsConfigDict(
@@ -175,6 +177,10 @@ class Settings(BaseSettings):
     # --- Security ---
     admin_bearer_token: SecretStr | None = None
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+    cors_origin_regex: str | None = Field(
+        default=None,
+        description="Regex matched against Origin header; allowed alongside cors_origins.",
+    )
 
     @property
     def embedding_dimensions(self) -> int:
@@ -213,6 +219,27 @@ class Settings(BaseSettings):
             str: ``ollama_embed_model`` for Ollama, else ``embed_model``.
         """
         return self.ollama_embed_model if self.embedding_provider == "ollama" else self.embed_model
+
+    @field_validator("cors_origin_regex")
+    @classmethod
+    def _validate_cors_regex(cls, v: str | None) -> str | None:
+        """Validate that cors_origin_regex is a compilable regex pattern.
+
+        Args:
+            v: The regex pattern string to validate.
+
+        Returns:
+            str | None: The validated regex pattern.
+
+        Raises:
+            ValueError: If the pattern is not a valid regex.
+        """
+        if v is not None:
+            try:
+                re.compile(v)
+            except re.error as exc:
+                raise ValueError(f"cors_origin_regex is not a valid regex: {exc}") from exc
+        return v
 
     @model_validator(mode="after")
     def _validate_relationships(self) -> Settings:

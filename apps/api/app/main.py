@@ -21,7 +21,7 @@ from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api import routes_admin, routes_query
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.db.engine import dispose_engine, get_sessionmaker
 from app.db.redis import close_redis, get_redis
 from app.observability.logging import CorrelationIdMiddleware, configure_logging
@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Yields:
         None: Control returns to the server for the lifetime of the application.
     """
-    settings: Settings = get_settings()
+    settings = get_settings()
     app.state.settings = settings
     app.state.sessionmaker = get_sessionmaker()
     app.state.redis = get_redis()
@@ -125,6 +125,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],
@@ -162,4 +163,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-"""Module-level ASGI application for ``uvicorn app.main:app``."""

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 from app import main
+from app.config import Settings
 from fastapi.testclient import TestClient
 
 
@@ -72,3 +73,21 @@ def test_inbound_correlation_id_is_echoed(healthy: None) -> None:
     response = client.get("/health", headers={"X-Correlation-ID": "trace-123"})
 
     assert response.headers["X-Correlation-ID"] == "trace-123"
+
+
+def test_cors_allows_192_168_origin(monkeypatch: pytest.MonkeyPatch, healthy: None) -> None:
+    """A 192.168.* origin gets Access-Control-Allow-Origin when regex is configured."""
+    pattern = r"http://192\.168\.\d+\.\d+(:\d+)?"
+    monkeypatch.setattr(main, "get_settings", lambda: Settings(cors_origin_regex=pattern, cors_origins=[]))
+    client = TestClient(main.create_app())
+    response = client.get("/health", headers={"Origin": "http://192.168.1.50"})
+    assert response.headers.get("access-control-allow-origin") == "http://192.168.1.50"
+
+
+def test_cors_blocks_non_matching_origin(monkeypatch: pytest.MonkeyPatch, healthy: None) -> None:
+    """A non-192.168.* origin does NOT get Access-Control-Allow-Origin when only regex is set."""
+    pattern = r"http://192\.168\.\d+\.\d+(:\d+)?"
+    monkeypatch.setattr(main, "get_settings", lambda: Settings(cors_origin_regex=pattern, cors_origins=[]))
+    client = TestClient(main.create_app())
+    response = client.get("/health", headers={"Origin": "http://10.0.0.1"})
+    assert "access-control-allow-origin" not in response.headers

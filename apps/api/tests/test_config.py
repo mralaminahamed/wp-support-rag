@@ -46,3 +46,22 @@ def test_invalid_provider_is_rejected() -> None:
     """An unknown default provider fails validation."""
     with pytest.raises(ValidationError):
         Settings(default_provider="gemini")  # type: ignore[arg-type]
+
+
+def test_cors_origin_regex_defaults_to_none() -> None:
+    """cors_origin_regex is None when not configured."""
+    settings = Settings()
+    assert settings.cors_origin_regex is None
+
+
+def test_cors_origin_regex_accepts_valid_pattern() -> None:
+    """cors_origin_regex accepts a valid regex string."""
+    pattern = r"http://192\.168\.\d+\.\d+(:\d+)?"
+    settings = Settings(cors_origin_regex=pattern)
+    assert settings.cors_origin_regex == pattern
+
+
+def test_cors_origin_regex_rejects_invalid_pattern() -> None:
+    """An invalid regex pattern raises ValidationError at instantiation."""
+    with pytest.raises(ValidationError):
+        Settings(cors_origin_regex=r"[")

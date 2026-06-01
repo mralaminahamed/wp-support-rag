@@ -621,3 +621,29 @@ class InviteToken(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+
+class PasswordResetToken(Base):
+    """A one-time password-reset token sent via email.
+
+    Attributes:
+        id: Surrogate primary key.
+        user_id: The user whose password is being reset.
+        token_hash: SHA-256 hex digest of the raw token UUID.
+        expires_at: Expiry timestamp (1 hour from creation by default).
+        used_at: Set when the token is consumed; null means unused.
+        user: The owning user.
+    """
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship()

@@ -1,24 +1,5 @@
 // Dashboard: KPIs, health, metrics, corpus, coverage, quick actions. Author: Al Amin Ahamed.
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  Activity,
-  Boxes,
-  Database,
-  DollarSign,
-  Gauge,
-  GitBranch,
-  Globe,
-  Layers,
-  MessagesSquare,
-  Play,
-  RefreshCw,
-  Server,
-  ShieldCheck,
-  Sparkles,
-  ThumbsUp,
-  TriangleAlert,
-  Zap,
-} from "lucide-react";
 import { Link } from "react-router-dom";
 import { getHealth, getMetrics, getRecentQueries, ingestAll, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
@@ -77,7 +58,7 @@ export function DashboardPage() {
               void plugins.refetch();
             }}
           >
-            <RefreshCw /> Refresh
+            <i className="ti ti-refresh text-sm" /> Refresh
           </Button>
         }
       />
@@ -88,10 +69,10 @@ export function DashboardPage() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[88px]" />)
         ) : (
           <>
-            <StatCard icon={MessagesSquare} label="Total queries" value={m.total_queries} />
-            <StatCard icon={ShieldCheck} label="Deflection" value={pct(m.deflection_rate)} tone="success" />
-            <StatCard icon={ThumbsUp} label="Helpful" value={pct(m.helpful_rate)} />
-            <StatCard icon={Gauge} label="p95 latency" value={`${m.p95_latency_ms} ms`} />
+            <StatCard icon="ti-messages" label="Total queries" value={m.total_queries} />
+            <StatCard icon="ti-shield-check" label="Deflection" value={pct(m.deflection_rate)} tone="success" />
+            <StatCard icon="ti-thumb-up" label="Helpful" value={pct(m.helpful_rate)} />
+            <StatCard icon="ti-gauge" label="p95 latency" value={`${m.p95_latency_ms} ms`} />
           </>
         )}
       </div>
@@ -100,7 +81,10 @@ export function DashboardPage() {
         <div className="space-y-5 lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>Service health</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <i className="ti ti-activity text-sm text-primary" />
+                Service health
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {health.isLoading ? (
@@ -109,9 +93,9 @@ export function DashboardPage() {
                 <ErrorState message={extractErrorMessage(health.error)} />
               ) : (
                 <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
-                  <HealthItem icon={Activity} label="Status" value={health.data!.status} />
-                  <HealthItem icon={Database} label="Database" value={health.data!.database} />
-                  <HealthItem icon={Server} label="Redis" value={health.data!.redis} />
+                  <HealthItem icon="ti-wifi" label="Status" value={health.data!.status} />
+                  <HealthItem icon="ti-database" label="Database" value={health.data!.database} />
+                  <HealthItem icon="ti-server" label="Redis" value={health.data!.redis} />
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Environment</span>
                     <Badge variant="secondary">{health.data!.environment}</Badge>
@@ -123,7 +107,10 @@ export function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Quality &amp; cost</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <i className="ti ti-chart-dots text-sm text-primary" />
+                Quality &amp; cost
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {metrics.isLoading || !m ? (
@@ -136,14 +123,14 @@ export function DashboardPage() {
                 <ErrorState message={extractErrorMessage(metrics.error)} />
               ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                  <StatCard icon={Zap} label="Cache hit" value={pct(m.cache_hit_rate)} />
+                  <StatCard icon="ti-bolt" label="Cache hit" value={pct(m.cache_hit_rate)} />
                   <StatCard
-                    icon={TriangleAlert}
+                    icon="ti-alert-triangle"
                     label="Degraded"
                     value={pct(m.degraded_rate)}
                     tone={m.degraded_rate > 0 ? "warning" : "success"}
                   />
-                  <StatCard icon={DollarSign} label="Mean / query" value={`$${m.mean_cost_usd.toFixed(4)}`} />
+                  <StatCard icon="ti-coin" label="Mean / query" value={`$${m.mean_cost_usd.toFixed(4)}`} />
                 </div>
               )}
             </CardContent>
@@ -151,7 +138,10 @@ export function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Top plugins by sources</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <i className="ti ti-puzzle text-sm text-primary" />
+                Top plugins by sources
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {plugins.isLoading ? (
@@ -182,7 +172,10 @@ export function DashboardPage() {
         <div className="space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle>Corpus</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <i className="ti ti-box text-sm text-primary" />
+                Corpus
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {plugins.isLoading ? (
@@ -191,8 +184,8 @@ export function DashboardPage() {
                 <ErrorState message={extractErrorMessage(plugins.error)} />
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  <StatCard icon={Boxes} label="Plugins" value={total} />
-                  <StatCard icon={Layers} label="Sources" value={totalSources} />
+                  <StatCard icon="ti-puzzle" label="Plugins" value={total} />
+                  <StatCard icon="ti-layers-intersect" label="Sources" value={totalSources} />
                 </div>
               )}
             </CardContent>
@@ -200,36 +193,42 @@ export function DashboardPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Coverage</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <i className="ti ti-target text-sm text-primary" />
+                Coverage
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <CoverageRow icon={GitBranch} label="GitHub-backed" value={githubBacked} total={total} />
-              <CoverageRow icon={Globe} label="WordPress.org" value={wporgListed} total={total} />
+              <CoverageRow icon="ti-brand-github" label="GitHub-backed" value={githubBacked} total={total} />
+              <CoverageRow icon="ti-world" label="WordPress.org" value={wporgListed} total={total} />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Quick actions</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <i className="ti ti-player-play text-sm text-primary" />
+                Quick actions
+              </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2">
-              <Button asChild variant="secondary" className="justify-start">
+              <Button asChild variant="secondary" className="justify-start gap-2">
                 <Link to="/playground">
-                  <Sparkles /> Try a query
+                  <i className="ti ti-sparkles text-sm" /> Try a query
                 </Link>
               </Button>
-              <Button asChild variant="secondary" className="justify-start">
+              <Button asChild variant="secondary" className="justify-start gap-2">
                 <Link to="/plugins">
-                  <Boxes /> Manage plugins
+                  <i className="ti ti-puzzle text-sm" /> Manage plugins
                 </Link>
               </Button>
               <Button
                 variant="secondary"
-                className="justify-start"
+                className="justify-start gap-2"
                 onClick={() => ingestEvery.mutate()}
                 disabled={ingestEvery.isPending}
               >
-                <Play /> Ingest all plugins
+                <i className="ti ti-player-play text-sm" /> Ingest all plugins
               </Button>
             </CardContent>
           </Card>
@@ -238,7 +237,10 @@ export function DashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent activity</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <i className="ti ti-history text-sm text-primary" />
+            Recent activity
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {recent.isLoading ? (
@@ -281,19 +283,11 @@ export function DashboardPage() {
   );
 }
 
-function HealthItem({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Activity;
-  label: string;
-  value: string;
-}) {
+function HealthItem({ icon, label, value }: { icon: string; label: string; value: string }) {
   const ok = value === "ok";
   return (
     <div className="flex items-center gap-2">
-      <Icon className={ok ? "size-4 text-success" : "size-4 text-warning"} />
+      <i className={`ti ${icon} text-base ${ok ? "text-success" : "text-warning"}`} />
       <span className="text-xs text-muted-foreground">{label}</span>
       <Badge variant={ok ? "success" : "warning"}>{value}</Badge>
     </div>
@@ -301,12 +295,12 @@ function HealthItem({
 }
 
 function CoverageRow({
-  icon: Icon,
+  icon,
   label,
   value,
   total,
 }: {
-  icon: typeof Globe;
+  icon: string;
   label: string;
   value: number;
   total: number;
@@ -314,13 +308,18 @@ function CoverageRow({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2 text-sm">
-        <Icon className="size-4 text-muted-foreground" />
+        <i className={`ti ${icon} text-base text-muted-foreground`} />
         <span className="flex-1">{label}</span>
         <span className="text-muted-foreground">
           {value}/{total}
         </span>
       </div>
-      <Bar value={value} max={Math.max(1, total)} />
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary"
+          style={{ width: `${total > 0 ? Math.round((value / total) * 100) : 0}%` }}
+        />
+      </div>
     </div>
   );
 }

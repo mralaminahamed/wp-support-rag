@@ -3,39 +3,51 @@
 **Project:** WP Plugin Support Desk RAG · **Author:** Al Amin Ahamed
 
 Day-two operations: register a plugin, ingest its docs, query, and read metrics.
-All admin calls require the bearer token from `WPRAG_ADMIN_BEARER_TOKEN`.
+All admin calls use HTTP-only cookie JWT sessions — log in first, then pass
+`--cookie-jar` / `--cookie` to carry the session across curl commands.
 
-## 0. Generate the admin token
+## 0. Bootstrap the first admin account
 
-`WPRAG_ADMIN_BEARER_TOKEN` is an opaque, high-entropy secret (no fixed format);
-the API compares the `Authorization` header to `Bearer <token>` exactly. Generate
-one and supply it via the environment (never commit it — `.env` is git-ignored):
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"   # or: openssl rand -base64 32
-```
+On first boot, when the `users` table is empty, the API seeds a `super_admin`
+account from `WPRAG_BOOTSTRAP_EMAIL` and `WPRAG_BOOTSTRAP_PASSWORD`. Supply
+these in `.env` or the environment before starting the stack (never commit
+credentials — `.env` is git-ignored):
 
 ```bash
-# local
-echo "WPRAG_ADMIN_BEARER_TOKEN=<generated>" >> .env && docker compose up -d app
-# production: set it in your secrets manager / host env before `up`
+# .env (local) — generate a strong JWT secret once:
+WPRAG_JWT_SECRET=$(openssl rand -hex 32)
+WPRAG_BOOTSTRAP_EMAIL=admin@example.com
+WPRAG_BOOTSTRAP_PASSWORD=<strong-password>
 ```
 
-Rotate by changing the value and restarting. Without it, all `/api/v1/admin/*`
-endpoints return 401.
+Log in at `http://localhost:8081/login` (admin console) or via the API:
+
+```bash
+curl -sS -c cookies.txt -X POST "$API/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"<password>"}'
+# → sets access_token + refresh_token HTTP-only cookies in cookies.txt
+```
+
+All subsequent admin API calls pass `-b cookies.txt` to carry the session.
+Rotate credentials by updating the password in the Users page; rotate the JWT
+secret by changing `WPRAG_JWT_SECRET` and restarting (all sessions expire).
 
 ## Session variables
 
 ```bash
 export API=http://localhost:8000
-export TOKEN=your-admin-bearer-token   # the value from step 0
+# Log in once; subsequent calls use -b cookies.txt
+curl -sS -c cookies.txt -X POST "$API/api/v1/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"<password>"}'
 ```
 
 ## 1. Register a plugin
 
 ```bash
-curl -sS -X POST "$API/api/v1/admin/plugins" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+curl -sS -b cookies.txt -X POST "$API/api/v1/admin/plugins" \
+  -H "Content-Type: application/json" \
   -d '{
         "slug": "swift-menu-duplicator",
         "name": "Swift Menu Duplicator",
@@ -52,15 +64,14 @@ A plugin and its full source set can also be loaded from a declarative file
 List registered plugins:
 
 ```bash
-curl -sS "$API/api/v1/admin/plugins" -H "Authorization: Bearer $TOKEN"
+curl -sS -b cookies.txt "$API/api/v1/admin/plugins"
 # → [{"slug":"swift-menu-duplicator","source_count":4,...}]
 ```
 
 ## 2. Ingest the documentation
 
 ```bash
-curl -sS -X POST "$API/api/v1/admin/ingest/swift-menu-duplicator" \
-  -H "Authorization: Bearer $TOKEN"
+curl -sS -b cookies.txt -X POST "$API/api/v1/admin/ingest/swift-menu-duplicator"
 # → {"plugin_slug":"swift-menu-duplicator","enqueued_sources":4}
 ```
 
@@ -76,8 +87,7 @@ Re-run anytime — only changed documents are re-embedded. A schedule (Celery be
 can keep the corpus fresh. Inspect a plugin's sources and last-ingested state:
 
 ```bash
-curl -sS "$API/api/v1/admin/plugins/swift-menu-duplicator/sources" \
-  -H "Authorization: Bearer $TOKEN"
+curl -sS -b cookies.txt "$API/api/v1/admin/plugins/swift-menu-duplicator/sources"
 # → [{"source_type":"wporg_faq","enabled":true,"last_ingested_at":"2026-…"}]
 ```
 
@@ -118,12 +128,11 @@ curl -sS -X POST "$API/api/v1/feedback" -H "Content-Type: application/json" \
 ## 4. Monitor
 
 ```bash
-curl -sS "$API/api/v1/admin/metrics" -H "Authorization: Bearer $TOKEN"
+curl -sS -b cookies.txt "$API/api/v1/admin/metrics"
 # deflection_rate, helpful_rate, cache_hit_rate, degraded_rate, mean_cost_usd, p95_latency_ms
 
 # Scope to one plugin:
-curl -sS "$API/api/v1/admin/metrics?plugin_slug=swift-menu-duplicator" \
-  -H "Authorization: Bearer $TOKEN"
+curl -sS -b cookies.txt "$API/api/v1/admin/metrics?plugin_slug=swift-menu-duplicator"
 ```
 
 Health and dependency reachability:
@@ -171,7 +180,7 @@ env-default assertions, not bugs. Run the full suite with defaults against a
 |---|---|---|
 | `/query` returns `degraded: true` | provider keys missing/invalid or outage | check `WPRAG_*_API_KEY`; the retrieval path still serves links |
 | `/query` returns `declined: true` for known topics | corpus not ingested or below threshold | run ingestion; lower `WPRAG_SIMILARITY_THRESHOLD` if needed |
-| 401 on admin calls | wrong/missing bearer token | set `WPRAG_ADMIN_BEARER_TOKEN` and the `Authorization` header |
+| 401 on admin calls | session cookie missing or expired | log in via `POST /api/v1/auth/login`; access token refreshes automatically via refresh cookie |
 | 429 on `/query` | per-IP rate limit hit | tune `WPRAG_RATE_LIMIT_MAX_REQUESTS` / `WPRAG_RATE_LIMIT_WINDOW_SECONDS` |
 | cost breaker refuses a call | projected cost over ceiling | raise `WPRAG_COST_CEILING_USD_PER_REQUEST` or shorten context |
 | HNSW index won't build | pgvector < 0.7.0 | set `WPRAG_DIMENSIONALITY_MODE=vector_1536` and re-migrate |

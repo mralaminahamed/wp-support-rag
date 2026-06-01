@@ -1,17 +1,6 @@
 // Playground: chat-style grounded Q&A. Each turn is an independent RAG query
 // (no conversation memory is sent to the model). Author: Al Amin Ahamed.
 import { useQuery } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  ExternalLink,
-  Send,
-  Sparkles,
-  ThumbsDown,
-  ThumbsUp,
-  User,
-} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { listPlugins } from "@/api/admin";
 import { postFeedback, postQuery, streamQuery } from "@/api/query";
@@ -171,7 +160,7 @@ function Greeting({ onPick, disabled }: { onPick: (q: string) => void; disabled:
   return (
     <div className="flex h-full flex-col items-center justify-center py-12 text-center">
       <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10">
-        <Sparkles className="size-6 text-primary" />
+        <i className="ti ti-sparkles text-2xl text-primary" />
       </div>
       <h2 className="mt-4 text-xl font-semibold tracking-tight">Ask about your plugins</h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
@@ -202,7 +191,7 @@ function UserBubble({ text }: { text: string }) {
         {text}
       </div>
       <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <User className="size-4" />
+        <i className="ti ti-user text-sm" />
       </div>
     </div>
   );
@@ -224,7 +213,7 @@ function AssistantMessage({
       <div className="min-w-0 flex-1 rounded-2xl rounded-tl-sm border bg-card px-4 py-3">
         {error ? (
           <p className="flex items-center gap-2 text-sm text-warning">
-            <AlertTriangle className="size-4" /> {error}
+            <i className="ti ti-alert-triangle text-base shrink-0" /> {error}
           </p>
         ) : result ? (
           <>
@@ -242,7 +231,7 @@ function AssistantMessage({
                 className="ml-auto"
                 onClick={() => copyText(result.answer)}
               >
-                <Copy /> Copy
+                <i className="ti ti-copy text-sm" /> Copy
               </Button>
             </div>
 
@@ -277,13 +266,13 @@ function AssistantMessage({
                         </span>
                         {s.cited && (
                           <span className="inline-flex items-center gap-1 text-[11px] text-success">
-                            <Check className="size-3" /> cited
+                            <i className="ti ti-check text-xs" /> cited
                           </span>
                         )}
                         <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
                           {hostOf(s.url)}
                         </span>
-                        <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
+                        <i className="ti ti-external-link text-sm shrink-0 text-muted-foreground" />
                       </a>
                     </li>
                   ))}
@@ -301,7 +290,7 @@ function AssistantMessage({
                   disabled={turn.feedbackSent}
                   onClick={() => onFeedback(turn, "helpful")}
                 >
-                  <ThumbsUp />
+                  <i className="ti ti-thumb-up text-sm" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -310,7 +299,7 @@ function AssistantMessage({
                   disabled={turn.feedbackSent}
                   onClick={() => onFeedback(turn, "not_helpful")}
                 >
-                  <ThumbsDown />
+                  <i className="ti ti-thumb-down text-sm" />
                 </Button>
                 {turn.feedbackSent && <span className="text-success">Thanks!</span>}
               </div>
@@ -393,7 +382,7 @@ function Composer({
           </label>
           <div className="flex-1" />
           <Button size="icon" aria-label="Ask" onClick={onSend} disabled={busy || !value.trim()}>
-            {busy ? <Spinner /> : <Send />}
+            {busy ? <Spinner /> : <i className="ti ti-send text-sm" />}
           </Button>
         </div>
       </div>

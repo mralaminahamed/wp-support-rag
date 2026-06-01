@@ -148,6 +148,12 @@ export interface AuthUser {
   roles: string[];
   permissions: string[];
   is_active: boolean;
+  created_at: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
 }
 
 export interface LoginRequest {
@@ -161,6 +167,15 @@ export interface RegisterRequest {
 }
 
 export interface AcceptInviteRequest {
+  token: string;
+  password: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
   token: string;
   password: string;
 }

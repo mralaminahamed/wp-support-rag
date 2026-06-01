@@ -1,13 +1,21 @@
 // Router. Author: Al Amin Ahamed.
-import { createBrowserRouter, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, RequireAuth } from "@/lib/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { AcceptInvitePage } from "@/pages/AcceptInvitePage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PlaygroundPage } from "@/pages/PlaygroundPage";
 import { PluginsPage } from "@/pages/PluginsPage";
-import { SettingsPage } from "@/pages/SettingsPage";
+import {
+  ProfileOverview,
+  ProfilePage,
+  ProfilePermissions,
+  ProfileSecurity,
+} from "@/pages/ProfilePage";
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
+import { EmbeddingSection, GenerationSection, SettingsPage } from "@/pages/SettingsPage";
 import { UsersPage } from "@/pages/UsersPage";
 
 function Root() {
@@ -31,6 +39,8 @@ export const router = createBrowserRouter([
     element: <Root />,
     children: [
       { path: "/login", element: <LoginPage /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/reset-password", element: <ResetPasswordPage /> },
       { path: "/accept-invite", element: <AcceptInvitePage /> },
       {
         path: "/",
@@ -39,8 +49,26 @@ export const router = createBrowserRouter([
           { index: true, element: <DashboardPage /> },
           { path: "plugins", element: <PluginsPage /> },
           { path: "playground", element: <PlaygroundPage /> },
-          { path: "settings", element: <SettingsPage /> },
           { path: "users", element: <UsersPage /> },
+          {
+            path: "settings",
+            element: <SettingsPage />,
+            children: [
+              { index: true, element: <Navigate to="generation" replace /> },
+              { path: "generation", element: <GenerationSection /> },
+              { path: "embeddings", element: <EmbeddingSection /> },
+            ],
+          },
+          {
+            path: "profile",
+            element: <ProfilePage />,
+            children: [
+              { index: true, element: <Navigate to="overview" replace /> },
+              { path: "overview", element: <ProfileOverview /> },
+              { path: "security", element: <ProfileSecurity /> },
+              { path: "permissions", element: <ProfilePermissions /> },
+            ],
+          },
         ],
       },
     ],

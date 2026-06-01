@@ -34,6 +34,7 @@ from app.auth.permissions import resolve_permissions
 from app.config import Settings
 from app.db.engine import get_session
 from app.db.models import InviteToken, Role, RolePermission, User, UserRole
+from app.email import send_invite
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/admin", tags=["users"])
@@ -56,6 +57,7 @@ def _user_response(user: User) -> AuthUserResponse:
         roles=[r.name for r in user.roles],
         permissions=_effective_permissions(user),
         is_active=user.is_active,
+        created_at=user.created_at.isoformat(),
     )
 
 
@@ -204,6 +206,13 @@ async def invite_user(
     invite_url: str | None = None
     if settings.admin_url:
         invite_url = f"{settings.admin_url.rstrip('/')}/accept-invite?token={raw}"
+
+    if invite_url:
+        try:
+            await send_invite(settings, to=payload.email, invite_url=invite_url)
+        except Exception:
+            logger.exception("failed to send invite email to %s", payload.email)
+
     return InviteResponse(token=raw, invite_url=invite_url)
 
 

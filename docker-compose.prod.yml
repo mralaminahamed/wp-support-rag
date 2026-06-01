@@ -2,7 +2,8 @@
 # Author: Al Amin Ahamed.
 #
 #   DOMAIN=support.example.com WPRAG_OPENAI_API_KEY=... WPRAG_ANTHROPIC_API_KEY=... \
-#   WPRAG_ADMIN_BEARER_TOKEN=... docker compose -f docker-compose.prod.yml up -d
+#   WPRAG_JWT_SECRET=$(openssl rand -hex 32) WPRAG_BOOTSTRAP_EMAIL=admin@example.com \
+#   WPRAG_BOOTSTRAP_PASSWORD=... docker compose -f docker-compose.prod.yml up -d
 #
 # Caddy terminates TLS automatically for $DOMAIN and reverse-proxies the API.
 # All secrets come from the environment; none are baked into the image.
@@ -14,7 +15,9 @@ x-app-env: &app-env
   WPRAG_DEFAULT_PROVIDER: ${WPRAG_DEFAULT_PROVIDER:-anthropic}
   WPRAG_ANTHROPIC_API_KEY: ${WPRAG_ANTHROPIC_API_KEY:-}
   WPRAG_OPENAI_API_KEY: ${WPRAG_OPENAI_API_KEY:-}
-  WPRAG_ADMIN_BEARER_TOKEN: ${WPRAG_ADMIN_BEARER_TOKEN:?set WPRAG_ADMIN_BEARER_TOKEN}
+  WPRAG_JWT_SECRET: ${WPRAG_JWT_SECRET:?set WPRAG_JWT_SECRET}
+  WPRAG_BOOTSTRAP_EMAIL: ${WPRAG_BOOTSTRAP_EMAIL:-}
+  WPRAG_BOOTSTRAP_PASSWORD: ${WPRAG_BOOTSTRAP_PASSWORD:-}
   WPRAG_CORS_ORIGINS: ${WPRAG_CORS_ORIGINS:-["*"]}
   WPRAG_LOG_LEVEL: ${WPRAG_LOG_LEVEL:-INFO}
 

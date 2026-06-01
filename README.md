@@ -47,7 +47,7 @@ apps/
   api/    # Python backend — FastAPI + Celery (package `app`, eval/, tests/, scripts/, own pyproject + uv.lock)
     app/seeders/   # Laravel-style dev seeders (roles, users, plugins)
     app/cli.py     # CLI entry point (seed command)
-    scripts/       # one-off scripts: sync_plugins, seed_dev
+    scripts/       # one-off scripts: sync_plugins
   web/    # embeddable support widget (single-file, no build)
   admin/  # admin console — Vite + React + TypeScript
 config/plugins/   # declarative plugin registrations (FR-PM-5; see config/README.md)

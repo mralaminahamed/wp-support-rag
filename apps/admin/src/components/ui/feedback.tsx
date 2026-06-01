@@ -1,5 +1,4 @@
-// Spinner, empty/error states (shadcn tokens). Author: Al Amin Ahamed.
-import { AlertCircle, Inbox } from "lucide-react";
+// Spinner, empty/error states. Author: Al Amin Ahamed.
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -18,8 +17,8 @@ export function Spinner({ className }: { className?: string }) {
 export function EmptyState({ title, hint }: { title: string; hint?: ReactNode }) {
   return (
     <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
-      <Inbox className="size-7 opacity-60" />
-      <p className="font-medium text-foreground">{title}</p>
+      <i className="ti ti-inbox text-3xl opacity-50" />
+      <p className="font-medium text-foreground text-sm">{title}</p>
       {hint && <p className="text-sm">{hint}</p>}
     </div>
   );
@@ -28,7 +27,7 @@ export function EmptyState({ title, hint }: { title: string; hint?: ReactNode })
 export function ErrorState({ message }: { message: string }) {
   return (
     <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-      <AlertCircle className="size-4 shrink-0" />
+      <i className="ti ti-alert-circle text-base shrink-0" />
       <span>{message}</span>
     </div>
   );

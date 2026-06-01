@@ -25,6 +25,7 @@ dependencies = [
     "tenacity>=9.0",
     "typer>=0.26.4",
     "faker>=40.19.1",
+    "aiosmtplib>=3.0",
 ]
 
 [dependency-groups]

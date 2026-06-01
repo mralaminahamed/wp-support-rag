@@ -1,16 +1,19 @@
-// Auth API calls: login, logout, me, register, acceptInvite.
+// Auth API calls: login, logout, me, register, acceptInvite, forgotPassword, resetPassword.
 // Author: Al Amin Ahamed.
 import type {
   AcceptInviteRequest,
   AuthUser,
+  ChangePasswordRequest,
   CreateRoleRequest,
   CreateUserRequest,
+  ForgotPasswordRequest,
   InviteRequest,
   InviteResponse,
   LoginRequest,
   PatchRoleRequest,
   PatchUserRequest,
   RegisterRequest,
+  ResetPasswordRequest,
   RoleSummary,
   UserListItem,
 } from "@/types/api";
@@ -37,6 +40,19 @@ export async function register(payload: RegisterRequest): Promise<AuthUser> {
 
 export async function acceptInvite(payload: AcceptInviteRequest): Promise<AuthUser> {
   const res = await apiClient.post<AuthUser>("/api/v1/auth/accept-invite", payload);
+  return res.data;
+}
+
+export async function forgotPassword(payload: ForgotPasswordRequest): Promise<void> {
+  await apiClient.post("/api/v1/auth/forgot-password", payload);
+}
+
+export async function resetPassword(payload: ResetPasswordRequest): Promise<void> {
+  await apiClient.post("/api/v1/auth/reset-password", payload);
+}
+
+export async function changePassword(payload: ChangePasswordRequest): Promise<AuthUser> {
+  const res = await apiClient.patch<AuthUser>("/api/v1/auth/me/password", payload);
   return res.data;
 }
 

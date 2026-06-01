@@ -1,11 +1,13 @@
-/* WP Support RAG — Admin. shadcn (base-nova) + brand indigo. Author: Al Amin Ahamed. */
+/* WP Support RAG — Admin. Crisp design system: Outfit font, Tabler icons, navy sidebar. */
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@fontsource-variable/outfit";
+@import "@tabler/icons-webfont/dist/tabler-icons.min.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Outfit Variable", "Outfit", system-ui, sans-serif;
   --font-heading: var(--font-sans);
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -13,6 +15,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
+  /* shadcn token bridge */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -38,68 +41,121 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  /* Layout tokens */
+  --color-nav: var(--nav);
+  --color-nav-border: var(--nav-border);
+  --color-nav-text: #4b6284;
+  --color-nav-text-active: #93c5fd;
+  --color-nav-active-bg: rgba(99, 102, 241, 0.14);
+
+  /* Text scale */
+  --color-text-1: var(--foreground);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-4: var(--text-4);
 }
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.985 0.002 270);
-  --foreground: oklch(0.21 0.02 270);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.02 270);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.02 270);
-  --primary: oklch(0.55 0.2 277);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.004 270);
-  --secondary-foreground: oklch(0.3 0.02 277);
-  --muted: oklch(0.967 0.004 270);
-  --muted-foreground: oklch(0.55 0.02 270);
-  --accent: oklch(0.95 0.025 277);
-  --accent-foreground: oklch(0.4 0.12 277);
+
+  /* Page chrome */
+  --background: #f1f5fb;
+  --foreground: #0f172a;
+  --text-2: #374151;
+  --text-3: #64748b;
+  --text-4: #94a3b8;
+
+  /* Cards / surfaces */
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  /* Brand — indigo */
+  --primary: oklch(0.53 0.22 279);
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #f1f5f9;
+  --secondary-foreground: #1e293b;
+
+  /* Muted */
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  /* Accent (chip / highlight) */
+  --accent: #eef2ff;
+  --accent-foreground: #4338ca;
+
+  /* Semantic */
   --destructive: oklch(0.58 0.22 27);
-  --success: oklch(0.6 0.15 150);
-  --warning: oklch(0.7 0.15 70);
-  --border: oklch(0.92 0.004 270);
-  --input: oklch(0.92 0.004 270);
-  --ring: oklch(0.55 0.2 277);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.21 0.02 270);
-  --sidebar-border: oklch(0.92 0.004 270);
-  --sidebar-accent: oklch(0.95 0.025 277);
-  --sidebar-accent-foreground: oklch(0.4 0.12 277);
+  --success: #059669;
+  --warning: #d97706;
+
+  /* Borders & inputs */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: oklch(0.53 0.22 279);
+
+  /* Sidebar tokens */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-border: #e2e8f0;
+  --sidebar-accent: #eef2ff;
+  --sidebar-accent-foreground: #4338ca;
+
+  /* Nav (dark sidebar) */
+  --nav: #1a2744;
+  --nav-border: rgba(255, 255, 255, 0.07);
 }
 
 .dark {
-  --background: oklch(0.16 0.01 270);
-  --foreground: oklch(0.92 0.01 270);
-  --card: oklch(0.21 0.015 270);
-  --card-foreground: oklch(0.92 0.01 270);
-  --popover: oklch(0.21 0.015 270);
-  --popover-foreground: oklch(0.92 0.01 270);
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --text-2: #e2e8f0;
+  --text-3: #94a3b8;
+  --text-4: #64748b;
+
+  --card: #1e293b;
+  --card-foreground: #f1f5f9;
+  --popover: #1e293b;
+  --popover-foreground: #f1f5f9;
+
   --primary: oklch(0.68 0.16 277);
-  --primary-foreground: oklch(0.16 0.01 270);
-  --secondary: oklch(0.27 0.015 270);
-  --secondary-foreground: oklch(0.92 0.01 270);
-  --muted: oklch(0.27 0.015 270);
-  --muted-foreground: oklch(0.66 0.02 270);
-  --accent: oklch(0.3 0.04 277);
-  --accent-foreground: oklch(0.85 0.06 277);
+  --primary-foreground: #0f172a;
+
+  --secondary: #1e293b;
+  --secondary-foreground: #f1f5f9;
+
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+
+  --accent: #1e2d4f;
+  --accent-foreground: #818cf8;
+
   --destructive: oklch(0.7 0.19 22);
-  --success: oklch(0.7 0.15 150);
-  --warning: oklch(0.78 0.15 70);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 15%);
+  --success: #10b981;
+  --warning: #f59e0b;
+
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.12);
   --ring: oklch(0.68 0.16 277);
-  --sidebar: oklch(0.21 0.015 270);
-  --sidebar-foreground: oklch(0.92 0.01 270);
-  --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-accent: oklch(0.3 0.04 277);
-  --sidebar-accent-foreground: oklch(0.85 0.06 277);
+
+  --sidebar: #1e293b;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-accent: #1e2d4f;
+  --sidebar-accent-foreground: #818cf8;
+
+  --nav: #0f172a;
+  --nav-border: rgba(255, 255, 255, 0.07);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    box-sizing: border-box;
   }
   html,
   body,
@@ -110,15 +166,15 @@
     @apply bg-background text-foreground;
     margin: 0;
     -webkit-font-smoothing: antialiased;
+    font-family: var(--font-sans);
   }
-  /* Subtle, theme-aware scrollbars (avoids the bright default track in dark mode). */
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
   }
   *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
@@ -130,6 +186,6 @@
     border-radius: 9999px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background-color: var(--muted-foreground);
+    background-color: var(--text-3);
   }
 }

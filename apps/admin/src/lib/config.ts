@@ -6,7 +6,14 @@ const THEME_KEY = "wprag_theme";
 
 const DEFAULT_API_BASE =
   (import.meta.env as Record<string, string | undefined>)["VITE_API_BASE_URL"] ??
-  "http://localhost:8000";
+  "";
+
+// If the stored value is an absolute URL pointing at localhost, it predates the
+// nginx-proxy setup. Clear it so relative URLs (proxied through nginx) are used.
+const stored = localStorage.getItem(API_BASE_KEY);
+if (stored && /^https?:\/\/localhost(:\d+)?$/.test(stored)) {
+  localStorage.removeItem(API_BASE_KEY);
+}
 
 export function getApiBase(): string {
   return localStorage.getItem(API_BASE_KEY) ?? DEFAULT_API_BASE;

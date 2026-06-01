@@ -2,7 +2,7 @@
 
 Provides request-scoped access to the database session, Redis, settings, the
 embedding client, and the LLM provider, plus a per-IP rate limiter (NFR-SC-2)
-and bearer-token admin authentication (FR-DL-4). The embedding-client and
+and cookie-based JWT authentication (FR-DL-4). The embedding-client and
 provider dependencies are overridable in tests via ``app.dependency_overrides``.
 
 Author: Al Amin Ahamed.

@@ -378,6 +378,7 @@ class AuthUserResponse(BaseModel):
         roles: Role names held by the user.
         permissions: Effective permission strings.
         is_active: Whether the account is active.
+        created_at: ISO creation timestamp.
     """
 
     id: uuid.UUID
@@ -385,6 +386,7 @@ class AuthUserResponse(BaseModel):
     roles: list[str]
     permissions: list[str]
     is_active: bool
+    created_at: str
 
 
 class UserListItem(BaseModel):
@@ -497,3 +499,37 @@ class PatchRoleRequest(BaseModel):
 
     description: str | None = None
     permissions: list[str] | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Body for POST /api/v1/auth/forgot-password.
+
+    Attributes:
+        email: The account email address to send the reset link to.
+    """
+
+    email: str = Field(max_length=320)
+
+
+class ResetPasswordRequest(BaseModel):
+    """Body for POST /api/v1/auth/reset-password.
+
+    Attributes:
+        token: Raw reset token from the email link.
+        password: New plain-text password (min 8 chars).
+    """
+
+    token: str
+    password: str = Field(min_length=8)
+
+
+class ChangePasswordRequest(BaseModel):
+    """Body for PATCH /api/v1/auth/me/password.
+
+    Attributes:
+        current_password: The user's current password for verification.
+        new_password: Replacement password (min 8 chars).
+    """
+
+    current_password: str = Field(min_length=1, max_length=1024)
+    new_password: str = Field(min_length=8, max_length=1024)

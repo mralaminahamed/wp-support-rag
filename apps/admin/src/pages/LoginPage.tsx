@@ -1,10 +1,10 @@
 // Login page: email + password form, sets HTTP-only cookie on success.
 // Author: Al Amin Ahamed.
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "@/api/auth";
 import { useAuth } from "@/lib/auth";
-import { Logo } from "@/components/Logo";
+import { AuthLayout } from "@/components/layout/AuthLayout";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -34,39 +34,51 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center gap-2">
-          <Logo size={36} />
-          <h1 className="text-xl font-bold">Support RAG</h1>
-          <p className="text-sm text-muted-foreground">Sign in to continue</p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Field label="Email">
-            <Input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@example.com"
-              required
-              autoFocus
-            />
-          </Field>
-          <Field label="Password">
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
-          </Field>
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full" disabled={loading}>
+    <AuthLayout title="Welcome back" description="Sign in to your account to continue.">
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Field label="Email">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="admin@example.com"
+            className="h-11 text-base"
+            required
+            autoFocus
+          />
+        </Field>
+        <Field label="Password">
+          <Input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            className="h-11 text-base"
+            required
+          />
+        </Field>
+
+        {error && (
+          <div className="flex items-start gap-2.5 rounded-lg bg-destructive/10 border border-destructive/20 px-3.5 py-3">
+            <span className="mt-0.5 shrink-0 text-destructive text-xs">✕</span>
+            <p className="text-sm text-destructive">{error}</p>
+          </div>
+        )}
+
+        <div className="pt-1 space-y-3">
+          <Button type="submit" className="w-full h-11 text-sm font-semibold" disabled={loading}>
             {loading ? "Signing in…" : "Sign in"}
           </Button>
-        </form>
-      </div>
-    </div>
+          <p className="text-center text-sm text-muted-foreground">
+            <Link
+              to="/forgot-password"
+              className="text-primary underline-offset-4 hover:underline transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </p>
+        </div>
+      </form>
+    </AuthLayout>
   );
 }

@@ -1,28 +1,51 @@
-// Brand logo mark (inline SVG, scales with size). Author: Al Amin Ahamed.
+// Brand mark: knowledge document (RAG) + retrieval graph (AI). Author: Al Amin Ahamed.
+import { useId } from "react";
+
 export function Logo({ size = 24 }: { size?: number }) {
+  const uid = useId().replace(/:/g, "");
+  const bgId = `logo-bg-${uid}`;
+
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 32 32"
       role="img"
-      aria-label="Support RAG"
+      aria-label="WP Support RAG"
       className="shrink-0"
     >
       <defs>
-        <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#6366f1" />
-          <stop offset="1" stopColor="#a855f7" />
+        <linearGradient id={bgId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#233468" />
+          <stop offset="100%" stopColor="#1a2744" />
         </linearGradient>
       </defs>
-      <rect width="32" height="32" rx="8" fill="url(#logo-g)" />
-      <path
-        d="M9 7h13a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-6l-5 4v-4H9a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4z"
-        fill="#ffffff"
+
+      {/* Badge background */}
+      <rect width="32" height="32" rx="7.5" fill={`url(#${bgId})`} />
+
+      {/* Document — left 60% of the mark */}
+      <rect
+        x="4.5" y="8" width="15" height="19"
+        rx="2.5"
+        fill="rgba(255,255,255,0.07)"
+        stroke="rgba(255,255,255,0.88)"
+        strokeWidth="1.6"
       />
-      <circle cx="11.5" cy="14" r="1.6" fill="#6366f1" />
-      <circle cx="16" cy="14" r="1.6" fill="#7c5cf0" />
-      <circle cx="20.5" cy="14" r="1.6" fill="#a855f7" />
+      {/* Content lines inside document */}
+      <rect x="7.5" y="13.5" width="9"  height="1.8" rx="0.9" fill="rgba(255,255,255,0.75)" />
+      <rect x="7.5" y="17.5" width="7"  height="1.8" rx="0.9" fill="rgba(255,255,255,0.52)" />
+      <rect x="7.5" y="21.5" width="8"  height="1.8" rx="0.9" fill="rgba(255,255,255,0.35)" />
+
+      {/* Knowledge graph — top-right: three nodes in a triangle = RAG retrieval */}
+      {/* Edges */}
+      <line x1="23"  y1="8"    x2="28.5" y2="14"   stroke="#818cf8" strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="28.5" y1="14"  x2="22"   y2="17.5"  stroke="#818cf8" strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="23"  y1="8"    x2="22"   y2="17.5"  stroke="#a5b4fc" strokeWidth="1.1" strokeLinecap="round" opacity="0.55" />
+      {/* Nodes */}
+      <circle cx="23"   cy="8"    r="2.4" fill="#818cf8" />
+      <circle cx="28.5" cy="14"   r="2.1" fill="#6366f1" />
+      <circle cx="22"   cy="17.5" r="1.8" fill="#a5b4fc" />
     </svg>
   );
 }

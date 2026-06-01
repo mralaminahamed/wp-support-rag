@@ -7,7 +7,7 @@ name: Deploy
 
 # Manual-only: a production deploy needs a configured host + secrets, so it does
 # not auto-run on every push. Trigger from the Actions tab (or `gh workflow run
-# Deploy`) once WPRAG_ADMIN_BEARER_TOKEN and the deploy target are configured.
+# Deploy`) once WPRAG_JWT_SECRET and the deploy target are configured.
 on:
   workflow_dispatch: {}
 
@@ -34,7 +34,9 @@ jobs:
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          WPRAG_ADMIN_BEARER_TOKEN: ${{ secrets.WPRAG_ADMIN_BEARER_TOKEN }}
+          WPRAG_JWT_SECRET: ${{ secrets.WPRAG_JWT_SECRET }}
+          WPRAG_BOOTSTRAP_EMAIL: ${{ secrets.WPRAG_BOOTSTRAP_EMAIL }}
+          WPRAG_BOOTSTRAP_PASSWORD: ${{ secrets.WPRAG_BOOTSTRAP_PASSWORD }}
         run: docker compose -f docker-compose.prod.yml run --rm app alembic upgrade head
 
       - name: Restart services
@@ -42,7 +44,9 @@ jobs:
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           DOMAIN: ${{ secrets.DOMAIN }}
-          WPRAG_ADMIN_BEARER_TOKEN: ${{ secrets.WPRAG_ADMIN_BEARER_TOKEN }}
+          WPRAG_JWT_SECRET: ${{ secrets.WPRAG_JWT_SECRET }}
+          WPRAG_BOOTSTRAP_EMAIL: ${{ secrets.WPRAG_BOOTSTRAP_EMAIL }}
+          WPRAG_BOOTSTRAP_PASSWORD: ${{ secrets.WPRAG_BOOTSTRAP_PASSWORD }}
           WPRAG_ANTHROPIC_API_KEY: ${{ secrets.WPRAG_ANTHROPIC_API_KEY }}
           WPRAG_OPENAI_API_KEY: ${{ secrets.WPRAG_OPENAI_API_KEY }}
         run: docker compose -f docker-compose.prod.yml up -d --remove-orphans

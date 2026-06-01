@@ -101,6 +101,13 @@ class Settings(BaseSettings):
         admin_url: Base URL of the admin console, used to build invite URLs.
         cors_origins: Origins permitted to call the public query API from the widget.
         cors_origin_regex: Regex matched against Origin header (Starlette allow_origin_regex).
+        smtp_host: SMTP server hostname for outbound email (leave blank to disable email).
+        smtp_port: SMTP server port (587 for STARTTLS, 465 for SSL, 25 for plain).
+        smtp_use_tls: Use STARTTLS when connecting to the SMTP server.
+        smtp_user: SMTP authentication username.
+        smtp_password: SMTP authentication password.
+        email_from: From address for outbound emails (e.g. "Support RAG <no-reply@example.com>").
+        password_reset_ttl_seconds: Password-reset token lifetime (default 1 hour).
     """
 
     model_config = SettingsConfigDict(
@@ -198,6 +205,15 @@ class Settings(BaseSettings):
         default=None,
         description="Regex matched against Origin header; allowed alongside cors_origins.",
     )
+
+    # --- Email (SMTP) ---
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_use_tls: bool = True
+    smtp_user: str | None = None
+    smtp_password: SecretStr | None = None
+    email_from: str = "WP Support RAG <no-reply@example.com>"
+    password_reset_ttl_seconds: int = Field(default=3600, ge=60)
 
     @property
     def embedding_dimensions(self) -> int:

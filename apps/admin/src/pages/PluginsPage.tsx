@@ -1,14 +1,5 @@
 // Plugins: search, sort, expand sources, ingest per plugin / all. Author: Al Amin Ahamed.
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-  ChevronDown,
-  ChevronRight,
-  GitBranch,
-  Globe,
-  Play,
-  Plus,
-  Search,
-} from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { ingestAll, ingestPlugin, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
@@ -96,10 +87,10 @@ export function PluginsPage() {
               onClick={() => ingestEvery.mutate()}
               disabled={ingestEvery.isPending}
             >
-              <Play /> Ingest all
+              <i className="ti ti-player-play text-sm" /> Ingest all
             </Button>
             <Button onClick={() => setRegistering(true)}>
-              <Plus /> Register plugin
+              <i className="ti ti-plus text-sm" /> Register plugin
             </Button>
           </>
         }
@@ -107,7 +98,7 @@ export function PluginsPage() {
 
       <div className="mb-3 flex items-center gap-3">
         <div className="relative max-w-xs flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <i className="ti ti-search pointer-events-none absolute top-1/2 left-2.5 text-sm -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -167,11 +158,7 @@ export function PluginsPage() {
                       onClick={() => setExpanded(open ? null : p.slug)}
                     >
                       <TableCell>
-                        {open ? (
-                          <ChevronDown className="size-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="size-4 text-muted-foreground" />
-                        )}
+                        <i className={`ti ${open ? "ti-chevron-down" : "ti-chevron-right"} text-sm text-muted-foreground`} />
                       </TableCell>
                       <TableCell className="font-mono text-[13px]">{p.slug}</TableCell>
                       <TableCell>{p.name}</TableCell>
@@ -188,7 +175,7 @@ export function PluginsPage() {
                           <RepoLink
                             href={`https://github.com/${p.github_repo}`}
                             title={p.github_repo}
-                            icon={GitBranch}
+                            icon="ti-brand-github"
                           />
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -199,7 +186,7 @@ export function PluginsPage() {
                           <RepoLink
                             href={`https://wordpress.org/plugins/${p.wporg_slug}/`}
                             title={p.wporg_slug}
-                            icon={Globe}
+                            icon="ti-world"
                           />
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -260,15 +247,7 @@ function SortHeader({
   );
 }
 
-function RepoLink({
-  href,
-  title,
-  icon: Icon,
-}: {
-  href: string;
-  title: string;
-  icon: typeof GitBranch;
-}) {
+function RepoLink({ href, title, icon }: { href: string; title: string; icon: string }) {
   return (
     <a
       href={href}
@@ -278,7 +257,7 @@ function RepoLink({
       aria-label={title}
       className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-primary"
     >
-      <Icon className="size-4" />
+      <i className={`ti ${icon} text-sm`} />
     </a>
   );
 }

@@ -17,10 +17,10 @@ x-app-env: &app-env
   WPRAG_BOOTSTRAP_PASSWORD: ${WPRAG_BOOTSTRAP_PASSWORD:-admin123}
   WPRAG_ALLOW_REGISTRATION: ${WPRAG_ALLOW_REGISTRATION:-false}
   WPRAG_ADMIN_URL: ${WPRAG_ADMIN_URL:-http://localhost:8081}
-  # Generation + embedding provider selection. Defaults run fully local against a
-  # host Ollama (reached via host.docker.internal); override in the root .env.
+  # Generation + embedding provider selection. Defaults run fully local via the
+  # ollama service below; override in the root .env.
   WPRAG_DEFAULT_PROVIDER: ${WPRAG_DEFAULT_PROVIDER:-ollama}
-  WPRAG_OLLAMA_BASE_URL: ${WPRAG_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  WPRAG_OLLAMA_BASE_URL: ${WPRAG_OLLAMA_BASE_URL:-http://ollama:11434}
   WPRAG_OLLAMA_MODEL: ${WPRAG_OLLAMA_MODEL:-llama3.2}
   WPRAG_ANTHROPIC_MODEL: ${WPRAG_ANTHROPIC_MODEL:-claude-sonnet-4-6}
   WPRAG_OPENAI_MODEL: ${WPRAG_OPENAI_MODEL:-gpt-4o-mini}
@@ -123,13 +123,21 @@ services:
     ports:
       - "8080:80"
 
+  # Local Ollama — reuses host model files so no re-download is needed.
+  # Runs internally only (no port mapping) to avoid conflicting with any
+  # host Ollama on 11434. Other services reach it at http://ollama:11434.
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - /usr/share/ollama/.ollama:/root/.ollama
+
   # Admin console (apps/admin) — Vite/React build served by nginx.
   admin:
     build:
       context: ./apps/admin
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://localhost:8000
+        VITE_API_BASE_URL: ""
     ports:
       - "8081:80"
     depends_on:

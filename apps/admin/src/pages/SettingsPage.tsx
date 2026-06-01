@@ -1,10 +1,11 @@
-// Settings: API connection + generation provider/model. Author: Al Amin Ahamed.
+// Settings: generation provider and embeddings. Author: Al Amin Ahamed.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { NavLink, Outlet } from "react-router-dom";
 import {
-  getHealth,
   getLlmConfig,
   getOllamaModels,
+  ingestAll,
   resetEmbeddingConfig,
   resetLlmConfig,
   updateEmbeddingConfig,
@@ -14,7 +15,7 @@ import type { OllamaModels } from "@/types/api";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/feedback";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -27,68 +28,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar } from "@/components/ui/avatar";
-import { getApiBase, setApiBase } from "@/lib/config";
-import { getProfile, setProfile } from "@/lib/profile";
 import { extractErrorMessage } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
+
+const TABS = [
+  { to: "generation", label: "Generation" },
+  { to: "embeddings", label: "Embeddings" },
+];
 
 export function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-5">
       <PageHeader
         title="Settings"
-        description="API connection, generation provider, and embeddings."
+        description="Generation provider and embeddings configuration."
       />
-      <ProfileCard />
-      <ConnectionCard />
-      <GenerationCard />
-      <EmbeddingCard />
+
+      <div className="flex border-b border-border">
+        {TABS.map(({ to, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              cn(
+                "-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+                isActive
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )
+            }
+          >
+            {label}
+          </NavLink>
+        ))}
+      </div>
+
+      <Outlet />
     </div>
   );
 }
 
-function ProfileCard() {
-  const toast = useToast();
-  const initial = getProfile();
-  const [name, setName] = useState(initial.name);
-  const [email, setEmail] = useState(initial.email);
-
-  function save() {
-    setProfile({ name: name.trim(), email: email.trim() });
-    toast.ok("Profile saved.");
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Profile</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="mb-4 flex items-center gap-3">
-          <Avatar name={name || "?"} email={email} size={48} />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{name || "Unnamed"}</p>
-            <p className="truncate text-xs text-muted-foreground">{email || "no email"}</p>
-          </div>
-        </div>
-        <Field label="Full name">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Al Amin Ahamed" />
-        </Field>
-        <Field label="Email" hint="Used for your Gravatar avatar. Stored in this browser only.">
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-          />
-        </Field>
-        <Button aria-label="Save profile" onClick={save}>
-          Save
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
+// ---------------------------------------------------------------------------
+// Shared
+// ---------------------------------------------------------------------------
 
 function ModelField({
   hint,
@@ -130,60 +112,11 @@ function ModelField({
   );
 }
 
-function ConnectionCard() {
-  const toast = useToast();
-  const queryClient = useQueryClient();
-  const [api, setApi] = useState(getApiBase());
-  const [testing, setTesting] = useState(false);
+// ---------------------------------------------------------------------------
+// Generation
+// ---------------------------------------------------------------------------
 
-  function save() {
-    setApiBase(api.trim());
-    void queryClient.invalidateQueries();
-    toast.ok("Settings saved.");
-  }
-
-  async function test() {
-    setApiBase(api.trim());
-    setTesting(true);
-    try {
-      const health = await getHealth();
-      if (health.status === "ok") toast.ok("Connected — service healthy.");
-      else
-        toast.info(`Reachable but ${health.status} (db ${health.database}, redis ${health.redis}).`);
-    } catch {
-      toast.err("Could not reach the API at that URL.");
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Connection</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Field label="API base URL">
-          <Input
-            value={api}
-            onChange={(e) => setApi(e.target.value)}
-            placeholder="http://localhost:8000"
-          />
-        </Field>
-        <div className="flex gap-2">
-          <Button aria-label="Save connection" onClick={save}>
-            Save
-          </Button>
-          <Button variant="secondary" onClick={test} disabled={testing}>
-            {testing ? "Testing…" : "Test connection"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function GenerationCard() {
+export function GenerationSection() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
@@ -192,7 +125,6 @@ function GenerationCard() {
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
 
-  // Seed the form once config loads.
   useEffect(() => {
     if (config.data) {
       setProvider(config.data.provider);
@@ -202,7 +134,6 @@ function GenerationCard() {
 
   function onProvider(next: string) {
     setProvider(next);
-    // Prefill the model with the chosen provider's env default.
     const info = config.data?.providers.find((p) => p.name === next);
     if (info) setModel(info.default_model);
   }
@@ -231,84 +162,76 @@ function GenerationCard() {
   const selected = current?.providers.find((p) => p.name === provider);
   const dirty = current ? provider !== current.provider || model.trim() !== current.model : false;
 
+  if (config.isLoading) return <Skeleton className="h-48 w-full" />;
+  if (config.isError) return <ErrorState message={extractErrorMessage(config.error)} />;
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Generation</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {config.isLoading ? (
-          <Skeleton className="h-40 w-full" />
-        ) : config.isError ? (
-          <ErrorState message={extractErrorMessage(config.error)} />
-        ) : (
-          <>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Active</span>
-              <Badge variant="accent">{current!.provider}</Badge>
-              <span className="font-mono text-[13px]">{current!.model}</span>
-              <Badge variant={current!.source === "override" ? "warning" : "secondary"}>
-                {current!.source === "override" ? "overridden" : "from .env"}
-              </Badge>
-            </div>
+      <CardContent className="pt-5 pb-5 space-y-4">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3.5 py-2.5 text-sm">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mr-1">Active</span>
+          <Badge variant="accent">{current!.provider}</Badge>
+          <span className="font-mono text-[12px] text-muted-foreground">{current!.model}</span>
+          <Badge variant={current!.source === "override" ? "warning" : "outline"} className="ml-auto text-[10px]">
+            {current!.source === "override" ? "overridden" : "env default"}
+          </Badge>
+        </div>
 
-            <Field label="Provider" hint="Default and per-provider models come from the .env file.">
-              <Select value={provider} onValueChange={onProvider}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {current!.providers.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>
-                      {p.name}
-                      {p.name === current!.default_provider ? " (default)" : ""}
-                      {p.configured ? "" : " — not configured"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+        <Field label="Provider" hint="Default and per-provider models come from the .env file.">
+          <Select value={provider} onValueChange={onProvider}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {current!.providers.map((p) => (
+                <SelectItem key={p.name} value={p.name}>
+                  {p.name}
+                  {p.name === current!.default_provider ? " (default)" : ""}
+                  {p.configured ? "" : " — not configured"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-            <ModelField
-              hint={selected ? `Env default: ${selected.default_model}` : undefined}
-              value={model}
-              onChange={setModel}
-              placeholder={selected?.default_model}
-              isOllama={provider === "ollama"}
-              listId="ollama-gen-models"
-              ollama={ollama.data}
-            />
+        <ModelField
+          hint={selected ? `Env default: ${selected.default_model}` : undefined}
+          value={model}
+          onChange={setModel}
+          placeholder={selected?.default_model}
+          isOllama={provider === "ollama"}
+          listId="ollama-gen-models"
+          ollama={ollama.data}
+        />
 
-            {selected && !selected.configured && (
-              <p className="mb-3 text-sm text-warning">
-                This provider has no credentials configured — generation will fail open until set.
-              </p>
-            )}
-
-            <div className="flex gap-2">
-              <Button
-                aria-label="Save generation"
-                onClick={() => save.mutate()}
-                disabled={!dirty || save.isPending}
-              >
-                {save.isPending ? "Saving…" : "Save"}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => reset.mutate()}
-                disabled={current!.source !== "override" || reset.isPending}
-              >
-                Reset to .env
-              </Button>
-            </div>
-          </>
+        {selected && !selected.configured && (
+          <p className="text-sm text-warning">
+            This provider has no credentials configured — generation will fail until set.
+          </p>
         )}
+
+        <div className="flex gap-2">
+          <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+            {save.isPending ? "Saving…" : "Save"}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => reset.mutate()}
+            disabled={current!.source !== "override" || reset.isPending}
+          >
+            Reset to .env
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function EmbeddingCard() {
+// ---------------------------------------------------------------------------
+// Embeddings
+// ---------------------------------------------------------------------------
+
+export function EmbeddingSection() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
@@ -335,7 +258,8 @@ function EmbeddingCard() {
     mutationFn: () => updateEmbeddingConfig({ provider, model: model.trim() || null }),
     onSuccess: (data) => {
       queryClient.setQueryData(["llm-config"], data);
-      toast.ok(`Embeddings set to ${data.embedding.provider} · ${data.embedding.model}`);
+      toast.ok(`Embeddings set to ${data.embedding.provider} · ${data.embedding.model}. Re-ingestion queued.`);
+      ingestAll().catch(() => undefined);
     },
     onError: (e) => toast.err(extractErrorMessage(e)),
   });
@@ -346,7 +270,8 @@ function EmbeddingCard() {
       queryClient.setQueryData(["llm-config"], data);
       setProvider(data.embedding.provider);
       setModel(data.embedding.model);
-      toast.ok("Reverted embeddings to environment defaults.");
+      toast.ok("Reverted embeddings to environment defaults. Re-ingestion queued.");
+      ingestAll().catch(() => undefined);
     },
     onError: (e) => toast.err(extractErrorMessage(e)),
   });
@@ -356,83 +281,71 @@ function EmbeddingCard() {
     ? provider !== embedding.provider || model.trim() !== embedding.model
     : false;
 
+  if (config.isLoading) return <Skeleton className="h-48 w-full" />;
+  if (config.isError || !embedding) return <ErrorState message={extractErrorMessage(config.error)} />;
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Embeddings</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {config.isLoading ? (
-          <Skeleton className="h-40 w-full" />
-        ) : config.isError || !embedding ? (
-          <ErrorState message={extractErrorMessage(config.error)} />
-        ) : (
-          <>
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-muted-foreground">Active</span>
-              <Badge variant="accent">{embedding.provider}</Badge>
-              <span className="font-mono text-[13px]">{embedding.model}</span>
-              <Badge variant="secondary">{embedding.dimensions} dims</Badge>
-              <Badge variant={embedding.source === "override" ? "warning" : "secondary"}>
-                {embedding.source === "override" ? "overridden" : "from .env"}
-              </Badge>
-            </div>
+      <CardContent className="pt-5 pb-5 space-y-4">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3.5 py-2.5 text-sm">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mr-1">Active</span>
+          <Badge variant="accent">{embedding.provider}</Badge>
+          <span className="font-mono text-[12px] text-muted-foreground">{embedding.model}</span>
+          <Badge variant="secondary" className="text-[10px]">{embedding.dimensions}d</Badge>
+          <Badge variant={embedding.source === "override" ? "warning" : "outline"} className="ml-auto text-[10px]">
+            {embedding.source === "override" ? "overridden" : "env default"}
+          </Badge>
+        </div>
 
-            <Field
-              label="Provider"
-              hint="The vector width is bound to the index; switching width needs a migration + re-embed."
-            >
-              <Select value={provider} onValueChange={onProvider}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {embedding.providers.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>
-                      {p.name} · {p.dimensions} dims
-                      {p.applicable ? "" : " — needs migration"}
-                      {p.configured ? "" : " — not configured"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
+        <Field
+          label="Provider"
+          hint="The vector width is bound to the index; switching width needs a migration + re-embed."
+        >
+          <Select value={provider} onValueChange={onProvider}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {embedding.providers.map((p) => (
+                <SelectItem key={p.name} value={p.name}>
+                  {p.name} · {p.dimensions} dims
+                  {p.applicable ? "" : " — needs migration"}
+                  {p.configured ? "" : " — not configured"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
-            <ModelField
-              hint={selected ? `Default: ${selected.default_model}` : undefined}
-              value={model}
-              onChange={setModel}
-              placeholder={selected?.default_model}
-              isOllama={provider === "ollama"}
-              listId="ollama-embed-models"
-              ollama={ollama.data}
-            />
+        <ModelField
+          hint={selected ? `Default: ${selected.default_model}` : undefined}
+          value={model}
+          onChange={setModel}
+          placeholder={selected?.default_model}
+          isOllama={provider === "ollama"}
+          listId="ollama-embed-models"
+          ollama={ollama.data}
+        />
 
-            {selected && !selected.applicable && (
-              <p className="mb-3 text-sm text-warning">
-                {selected.dimensions} dims ≠ current {embedding.dimensions}. Set
-                WPRAG_EMBEDDING_PROVIDER, run migrations, and re-ingest to switch width.
-              </p>
-            )}
-
-            <div className="flex gap-2">
-              <Button
-                aria-label="Save embedding"
-                onClick={() => save.mutate()}
-                disabled={!dirty || save.isPending}
-              >
-                {save.isPending ? "Saving…" : "Save"}
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => reset.mutate()}
-                disabled={embedding.source !== "override" || reset.isPending}
-              >
-                Reset to .env
-              </Button>
-            </div>
-          </>
+        {selected && !selected.applicable && (
+          <p className="text-sm text-warning">
+            {selected.dimensions} dims ≠ current {embedding.dimensions}. Set
+            WPRAG_EMBEDDING_PROVIDER, run migrations, and re-ingest to switch width.
+          </p>
         )}
+
+        <div className="flex gap-2">
+          <Button onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
+            {save.isPending ? "Saving…" : "Save"}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => reset.mutate()}
+            disabled={embedding.source !== "override" || reset.isPending}
+          >
+            Reset to .env
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

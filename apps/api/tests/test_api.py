@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator, Iterator
 
 import pytest
 from app.api.deps import get_embedding_client, get_provider, get_settings_dep
+from app.auth.jwt import UserClaims, create_access_token
 from app.config import Settings, get_settings
 from app.db.engine import dispose_engine, get_engine, get_sessionmaker
 from app.db.models import Plugin
@@ -36,6 +37,23 @@ from tests.conftest import (
 
 SLUG = "swift-menu-duplicator"
 REAL_URL = "https://wordpress.org/plugins/swift-menu-duplicator/#faq"
+
+_JWT_SECRET = "test-jwt-secret"  # noqa: S105
+
+
+def _test_settings(**kwargs) -> Settings:
+    return Settings(jwt_secret=_JWT_SECRET, bootstrap_email=None, bootstrap_password=None, **kwargs)
+
+
+def _auth_cookie(permissions: list[str]) -> dict[str, str]:
+    claims = UserClaims(
+        sub=str(uuid.uuid4()),
+        email="admin@test.com",
+        roles=["super_admin"],
+        permissions=permissions,
+    )
+    token = create_access_token(claims, secret=_JWT_SECRET, ttl_seconds=300)
+    return {"access_token": token}
 
 
 class _StubAdapter:
@@ -197,13 +215,12 @@ async def test_query_stream_emits_tokens_and_cited_done(_ready: None) -> None:
 
 async def test_admin_lists_plugins_and_sources(_ready: None) -> None:
     """Admin can list plugins and a plugin's sources (FR-PM-1/2/4)."""
-    token = "secret-token"  # noqa: S105 - test-only token
     app = create_app()
-    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
-    headers = {"Authorization": f"Bearer {token}"}
-    with TestClient(app) as tc:
-        plugins = tc.get("/api/v1/admin/plugins", headers=headers)
-        sources = tc.get(f"/api/v1/admin/plugins/{SLUG}/sources", headers=headers)
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
+    cookies = _auth_cookie(["plugins:read"])
+    with TestClient(app, cookies=cookies) as tc:
+        plugins = tc.get("/api/v1/admin/plugins")
+        sources = tc.get(f"/api/v1/admin/plugins/{SLUG}/sources")
 
     assert plugins.status_code == 200
     assert any(p["slug"] == SLUG for p in plugins.json())
@@ -220,11 +237,11 @@ async def test_admin_ingest_all_enqueues_every_source(
     calls: list[str] = []
     monkeypatch.setattr(tasks_module.ingest_source_task, "delay", calls.append)
 
-    token = "secret-token"  # noqa: S105 - test-only token
     app = create_app()
-    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
-    with TestClient(app) as tc:
-        response = tc.post("/api/v1/admin/ingest", headers={"Authorization": f"Bearer {token}"})
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
+    cookies = _auth_cookie(["ingestion:trigger"])
+    with TestClient(app, cookies=cookies) as tc:
+        response = tc.post("/api/v1/admin/ingest")
 
     assert response.status_code == 200
     body = response.json()
@@ -235,12 +252,11 @@ async def test_admin_ingest_all_enqueues_every_source(
 
 async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
     """Admin can read, override, and reset the active provider/model (FR-GN-3)."""
-    token = "secret-token"  # noqa: S105 - test-only token
     app = create_app()
-    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
-    headers = {"Authorization": f"Bearer {token}"}
-    with TestClient(app) as tc:
-        initial = tc.get("/api/v1/admin/llm", headers=headers)
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
+    cookies = _auth_cookie(["settings:read", "settings:write"])
+    with TestClient(app, cookies=cookies) as tc:
+        initial = tc.get("/api/v1/admin/llm")
         assert initial.status_code == 200
         body = initial.json()
         assert body["provider"] == "anthropic"
@@ -249,7 +265,6 @@ async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
 
         set_resp = tc.put(
             "/api/v1/admin/llm",
-            headers=headers,
             json={"provider": "ollama", "model": "llama3.1:8b"},
         )
         assert set_resp.status_code == 200
@@ -259,32 +274,28 @@ async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
         assert overridden["source"] == "override"
 
         # The override persists across reads.
-        assert tc.get("/api/v1/admin/llm", headers=headers).json()["provider"] == "ollama"
+        assert tc.get("/api/v1/admin/llm").json()["provider"] == "ollama"
 
         # Omitting the model falls back to the provider's env default.
-        defaulted = tc.put("/api/v1/admin/llm", headers=headers, json={"provider": "openai"}).json()
+        defaulted = tc.put("/api/v1/admin/llm", json={"provider": "openai"}).json()
         assert defaulted["provider"] == "openai"
         assert defaulted["model"] == Settings().openai_model
 
         # Unknown providers are rejected.
-        assert (
-            tc.put("/api/v1/admin/llm", headers=headers, json={"provider": "nope"}).status_code
-            == 422
-        )
+        assert tc.put("/api/v1/admin/llm", json={"provider": "nope"}).status_code == 422
 
-        reset = tc.delete("/api/v1/admin/llm", headers=headers).json()
+        reset = tc.delete("/api/v1/admin/llm").json()
         assert reset["source"] == "env"
         assert reset["provider"] == "anthropic"
 
 
 async def test_admin_embedding_config_guards_dimension_change(_ready: None) -> None:
     """Embedding override applies same-width only; a width change is a 409 (ADR-002)."""
-    token = "secret-token"  # noqa: S105 - test-only token
     app = create_app()
-    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
-    headers = {"Authorization": f"Bearer {token}"}
-    with TestClient(app) as tc:
-        body = tc.get("/api/v1/admin/llm", headers=headers).json()
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
+    cookies = _auth_cookie(["settings:read", "settings:write"])
+    with TestClient(app, cookies=cookies) as tc:
+        body = tc.get("/api/v1/admin/llm").json()
         emb = body["embedding"]
         # Default: OpenAI text-embedding-3-large at 3072 dims.
         assert emb["provider"] == "openai"
@@ -295,40 +306,34 @@ async def test_admin_embedding_config_guards_dimension_change(_ready: None) -> N
         assert names["openai"]["applicable"] is True
 
         # Switching to Ollama (768) is rejected: it would change the index width.
-        conflict = tc.put(
-            "/api/v1/admin/llm/embedding", headers=headers, json={"provider": "ollama"}
-        )
+        conflict = tc.put("/api/v1/admin/llm/embedding", json={"provider": "ollama"})
         assert conflict.status_code == 409
         assert "re-ingest" in conflict.json()["detail"]
 
         # A same-width model override is accepted.
         ok = tc.put(
             "/api/v1/admin/llm/embedding",
-            headers=headers,
             json={"provider": "openai", "model": "text-embedding-3-small"},
         )
         assert ok.status_code == 200
         assert ok.json()["embedding"]["source"] == "override"
         assert ok.json()["embedding"]["model"] == "text-embedding-3-small"
 
-        reset = tc.delete("/api/v1/admin/llm/embedding", headers=headers).json()
+        reset = tc.delete("/api/v1/admin/llm/embedding").json()
         assert reset["embedding"]["source"] == "env"
 
 
 async def test_admin_ollama_models_reports_unreachable(_ready: None) -> None:
     """The Ollama models proxy returns reachable=False when the server is down."""
-    token = "secret-token"  # noqa: S105 - test-only token
     app = create_app()
     # Point at a closed local port so the request fails fast without any live API.
-    app.dependency_overrides[get_settings_dep] = lambda: Settings(
-        admin_bearer_token=token,
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings(
         ollama_base_url="http://127.0.0.1:9",
         http_timeout_seconds=0.5,
     )
-    with TestClient(app) as tc:
-        response = tc.get(
-            "/api/v1/admin/ollama/models", headers={"Authorization": f"Bearer {token}"}
-        )
+    cookies = _auth_cookie(["settings:read"])
+    with TestClient(app, cookies=cookies) as tc:
+        response = tc.get("/api/v1/admin/ollama/models")
     assert response.status_code == 200
     body = response.json()
     assert body["reachable"] is False
@@ -337,13 +342,11 @@ async def test_admin_ollama_models_reports_unreachable(_ready: None) -> None:
 
 async def test_admin_recent_queries_returns_list(_ready: None) -> None:
     """The recent-queries endpoint returns a bounded, newest-first list (FR-FB-3)."""
-    token = "secret-token"  # noqa: S105 - test-only token
     app = create_app()
-    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
-    with TestClient(app) as tc:
-        response = tc.get(
-            "/api/v1/admin/queries?limit=5", headers={"Authorization": f"Bearer {token}"}
-        )
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
+    cookies = _auth_cookie(["metrics:read"])
+    with TestClient(app, cookies=cookies) as tc:
+        response = tc.get("/api/v1/admin/queries?limit=5")
     assert response.status_code == 200
     body = response.json()
     assert isinstance(body, list)
@@ -357,16 +360,14 @@ async def test_admin_llm_config_requires_bearer(_ready: None, client: TestClient
     assert client.get("/api/v1/admin/llm").status_code == 401
 
 
-async def test_admin_metrics_requires_bearer(_ready: None, client: TestClient) -> None:
-    """Admin metrics reject unauthenticated calls and accept the configured token."""
+async def test_admin_metrics_requires_auth(_ready: None, client: TestClient) -> None:
+    """Admin metrics reject unauthenticated calls and accept a valid JWT cookie."""
     assert client.get("/api/v1/admin/metrics").status_code == 401
 
-    token = "secret-token"  # noqa: S105 - test-only token
     app = create_app()
-    app.dependency_overrides[get_settings_dep] = lambda: Settings(admin_bearer_token=token)
-    with TestClient(app) as tc:
-        ok = tc.get("/api/v1/admin/metrics", headers={"Authorization": f"Bearer {token}"})
-        bad = tc.get("/api/v1/admin/metrics", headers={"Authorization": "Bearer wrong"})
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
+    cookies = _auth_cookie(["metrics:read"])
+    with TestClient(app, cookies=cookies) as tc:
+        ok = tc.get("/api/v1/admin/metrics")
     assert ok.status_code == 200
     assert "total_queries" in ok.json()
-    assert bad.status_code == 401

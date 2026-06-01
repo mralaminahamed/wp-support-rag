@@ -92,6 +92,7 @@ class Settings(BaseSettings):
         rate_limit_window_seconds: Length of the rate-limit window.
         admin_bearer_token: Bearer token guarding admin endpoints (NFR-SC-2).
         cors_origins: Origins permitted to call the public query API from the widget.
+        cors_origin_regex: Optional regex matched against the Origin header (Starlette allow_origin_regex).
     """
 
     model_config = SettingsConfigDict(
@@ -175,6 +176,10 @@ class Settings(BaseSettings):
     # --- Security ---
     admin_bearer_token: SecretStr | None = None
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
+    cors_origin_regex: str | None = Field(
+        default=None,
+        description="Regex matched against Origin header; allowed alongside cors_origins.",
+    )
 
     @property
     def embedding_dimensions(self) -> int:

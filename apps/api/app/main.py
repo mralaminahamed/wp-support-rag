@@ -1,8 +1,9 @@
 """FastAPI application factory.
 
 Builds the ASGI application: configures structured logging, installs the
-correlation-id middleware and CORS, manages startup/shutdown via lifespan, and
-exposes a ``/health`` endpoint that probes PostgreSQL and Redis connectivity.
+correlation-id middleware and CORS, manages startup/shutdown via lifespan,
+registers all routers, calls the first-boot admin bootstrap, and exposes
+a /health endpoint that probes PostgreSQL and Redis connectivity.
 
 Author: Al Amin Ahamed.
 """
@@ -21,6 +22,9 @@ from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api import routes_admin, routes_query
+from app.api.routes_auth import router as auth_router
+from app.api.routes_users import router as users_router
+from app.auth.bootstrap import maybe_bootstrap_admin
 from app.config import get_settings
 from app.db.engine import dispose_engine, get_sessionmaker
 from app.db.redis import close_redis, get_redis
@@ -80,9 +84,9 @@ async def _check_redis() -> bool:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown.
 
-    On startup, resolves settings and warms the shared engine and Redis client
-    onto application state. On shutdown, disposes the engine pool and closes the
-    Redis client so connections are released cleanly.
+    On startup, resolves settings, warms the shared engine and Redis client,
+    and runs the first-boot bootstrap (seeds super_admin if no users exist).
+    On shutdown, disposes the engine pool and closes the Redis client.
 
     Args:
         app: The application whose lifecycle is being managed.
@@ -98,6 +102,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "service starting",
         extra={"environment": settings.environment, "provider": settings.default_provider},
     )
+    async with get_sessionmaker()() as session:
+        await maybe_bootstrap_admin(session, settings)
     try:
         yield
     finally:
@@ -126,11 +132,13 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_origin_regex=settings.cors_origin_regex,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
     )
 
+    app.include_router(auth_router)
+    app.include_router(users_router)
     app.include_router(routes_query.router)
     app.include_router(routes_admin.router)
 
@@ -139,8 +147,7 @@ def create_app() -> FastAPI:
         """Report service liveness and dependency connectivity.
 
         Probes PostgreSQL and Redis concurrently. Returns HTTP 200 when both are
-        reachable and HTTP 503 when either is down, so orchestrators can gate on
-        the status code as well as the body.
+        reachable and HTTP 503 when either is down.
 
         Returns:
             JSONResponse: The health payload with a 200 or 503 status code.

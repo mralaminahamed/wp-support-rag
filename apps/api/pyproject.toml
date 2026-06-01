@@ -23,6 +23,8 @@ dependencies = [
     "anthropic>=0.40",
     "openai>=1.58",
     "tenacity>=9.0",
+    "typer>=0.26.4",
+    "faker>=40.19.1",
 ]
 
 [dependency-groups]

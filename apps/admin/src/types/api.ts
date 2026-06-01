@@ -141,3 +141,75 @@ export interface QueryResponse {
   provider: string;
   model: string;
 }
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  roles: string[];
+  permissions: string[];
+  is_active: boolean;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+export interface AcceptInviteRequest {
+  token: string;
+  password: string;
+}
+
+export interface UserListItem {
+  id: string;
+  email: string;
+  roles: string[];
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CreateUserRequest {
+  email: string;
+  password: string;
+  role_ids: string[];
+}
+
+export interface PatchUserRequest {
+  is_active?: boolean;
+  role_ids?: string[];
+}
+
+export interface InviteRequest {
+  email: string;
+  role_id: string;
+}
+
+export interface InviteResponse {
+  token: string;
+  invite_url: string | null;
+}
+
+export interface RoleSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  permissions: string[];
+}
+
+export interface CreateRoleRequest {
+  name: string;
+  description?: string | null;
+  permissions: string[];
+}
+
+export interface PatchRoleRequest {
+  description?: string | null;
+  permissions?: string[];
+}
+

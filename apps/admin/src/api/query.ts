@@ -1,5 +1,5 @@
 // Public query + feedback API, incl. SSE streaming. Author: Al Amin Ahamed.
-import { getApiBase, getToken } from "@/lib/config";
+import { getApiBase } from "@/lib/config";
 import type { QueryResponse, SourceRef } from "@/types/api";
 import { apiClient } from "./client";
 
@@ -42,11 +42,10 @@ export async function streamQuery(
   onToken: (text: string) => void,
 ): Promise<StreamDone> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${getApiBase()}/api/v1/query/stream`, {
     method: "POST",
+    credentials: "include",
     headers,
     body: JSON.stringify(input),
   });

@@ -91,7 +91,14 @@ class Settings(BaseSettings):
         cost_ceiling_usd_per_request: Per-request projected-cost ceiling (FR-GN-5).
         rate_limit_max_requests: Allowed public requests per window per hashed IP.
         rate_limit_window_seconds: Length of the rate-limit window.
-        admin_bearer_token: Bearer token guarding admin endpoints (NFR-SC-2).
+        jwt_secret: HS256 signing key for access tokens.
+        jwt_algorithm: JWT signing algorithm (default HS256).
+        access_token_ttl_seconds: Access token lifetime in seconds (default 15 min).
+        refresh_token_ttl_seconds: Refresh token lifetime in seconds (default 7 days).
+        bootstrap_email: Email for the first super_admin user seeded on first boot.
+        bootstrap_password: Password for the bootstrap admin (cleared after seeding).
+        allow_registration: Whether POST /api/v1/auth/register is open (default false).
+        admin_url: Base URL of the admin console, used to build invite URLs.
         cors_origins: Origins permitted to call the public query API from the widget.
         cors_origin_regex: Regex matched against Origin header (Starlette allow_origin_regex).
     """
@@ -175,7 +182,17 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = Field(default=60, ge=1)
 
     # --- Security ---
-    admin_bearer_token: SecretStr | None = None
+    jwt_secret: SecretStr = Field(
+        default=SecretStr("dev-jwt-secret-change-in-prod"),
+        description="HS256 signing key for access tokens (WPRAG_JWT_SECRET).",
+    )
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_seconds: int = Field(default=900, ge=60)
+    refresh_token_ttl_seconds: int = Field(default=604_800, ge=3600)
+    bootstrap_email: str | None = None
+    bootstrap_password: SecretStr | None = None
+    allow_registration: bool = False
+    admin_url: str | None = None
     cors_origins: list[str] = Field(default_factory=lambda: ["*"])
     cors_origin_regex: str | None = Field(
         default=None,

@@ -59,3 +59,9 @@ def test_cors_origin_regex_accepts_valid_pattern() -> None:
     pattern = r"http://192\.168\.\d+\.\d+(:\d+)?"
     settings = Settings(cors_origin_regex=pattern)
     assert settings.cors_origin_regex == pattern
+
+
+def test_cors_origin_regex_rejects_invalid_pattern() -> None:
+    """An invalid regex pattern raises ValidationError at instantiation."""
+    with pytest.raises(ValidationError):
+        Settings(cors_origin_regex=r"[")

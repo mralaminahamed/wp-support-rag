@@ -45,6 +45,9 @@ self-contained under `apps/api`.
 ```
 apps/
   api/    # Python backend — FastAPI + Celery (package `app`, eval/, tests/, scripts/, own pyproject + uv.lock)
+    app/seeders/   # Laravel-style dev seeders (roles, users, plugins)
+    app/cli.py     # CLI entry point (seed command)
+    scripts/       # one-off scripts: sync_plugins, seed_dev
   web/    # embeddable support widget (single-file, no build)
   admin/  # admin console — Vite + React + TypeScript
 config/plugins/   # declarative plugin registrations (FR-PM-5; see config/README.md)
@@ -60,6 +63,9 @@ cd apps/api && uv sync                    # install (Python lives here)
 docker compose up -d                      # postgres+pgvector, redis, app, worker, beat
 cd apps/api && uv run alembic upgrade head
 curl localhost:8000/health                # {"status":"ok",...}
+
+# Optional: seed dev accounts + sample plugins
+uv run python -m app.cli                  # roles, users, plugins (idempotent)
 ```
 
 `docker compose up` runs all services: **api** (`:8000`), worker, beat, Postgres,
@@ -209,3 +215,44 @@ WPRAG_DATABASE_DSN=postgresql+asyncpg://wprag:wprag@localhost:5432/wprag \
 ```
 
 See `config/README.md` for the file schema and source types.
+
+## Development data
+
+Laravel-style seeders populate a fresh database with realistic dev fixtures.
+All seeders are idempotent — safe to re-run; use `--fresh` to wipe and re-seed.
+
+```bash
+cd apps/api
+
+uv run python -m app.cli                  # seed everything
+uv run python -m app.cli --table users    # seed only users
+uv run python -m app.cli --table plugins  # seed only plugins
+uv run python -m app.cli --fresh          # truncate seeded rows then re-seed
+```
+
+**Seeded roles**
+
+| Role | Permissions |
+|------|-------------|
+| `super_admin` *(system)* | all 9 |
+| `admin` *(system)* | all except `users:*` |
+| `viewer` *(system)* | `plugins:read`, `metrics:read` |
+| `editor` *(custom)* | `plugins:read/write`, `ingestion:trigger` |
+
+**Seeded accounts** (password `DevPass123!` — dev only, never use in production)
+
+| Email | Role | Active |
+|-------|------|--------|
+| `superadmin@dev.local` | super_admin | yes |
+| `admin@dev.local` | admin | yes |
+| `editor@dev.local` | editor | yes |
+| `viewer@dev.local` | viewer | yes |
+| `inactive@dev.local` | viewer | **no** |
+
+**Seeded plugins**
+
+| Slug | Sources |
+|------|---------|
+| `hello-dolly` | wporg_faq, wporg_changelog |
+| `woocommerce` | wporg_faq, wporg_changelog, github_readme |
+| `contact-form-7` | wporg_faq, wporg_changelog, wporg_support |

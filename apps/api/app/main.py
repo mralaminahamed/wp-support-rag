@@ -26,7 +26,12 @@ from app.db.engine import dispose_engine, get_sessionmaker
 from app.db.redis import close_redis, get_redis
 from app.observability.logging import CorrelationIdMiddleware, configure_logging
 
+__all__ = ["create_app", "app", "settings"]
+
 logger = logging.getLogger(__name__)
+
+settings: Settings = get_settings()
+"""Module-level settings singleton, used throughout the application."""
 
 
 class HealthResponse(BaseModel):
@@ -112,7 +117,6 @@ def create_app() -> FastAPI:
     Returns:
         FastAPI: A fully wired application instance ready to serve.
     """
-    settings = get_settings()
     configure_logging(settings.log_level)
 
     app = FastAPI(
@@ -125,6 +129,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["*"],

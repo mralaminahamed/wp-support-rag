@@ -93,7 +93,7 @@ class Settings(BaseSettings):
         rate_limit_window_seconds: Length of the rate-limit window.
         admin_bearer_token: Bearer token guarding admin endpoints (NFR-SC-2).
         cors_origins: Origins permitted to call the public query API from the widget.
-        cors_origin_regex: Optional regex matched against the Origin header (Starlette allow_origin_regex).
+        cors_origin_regex: Regex matched against Origin header (Starlette allow_origin_regex).
     """
 
     model_config = SettingsConfigDict(

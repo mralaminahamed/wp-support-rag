@@ -22,6 +22,7 @@ from typing import Any, cast
 
 from pgvector.sqlalchemy import HALFVEC, Vector
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Computed,
     DateTime,
@@ -424,3 +425,199 @@ class Feedback(Base):
     created_at: Mapped[datetime] = _created_at()
 
     query: Mapped[Query] = relationship(back_populates="feedback")
+
+
+# ---------------------------------------------------------------------------
+# Auth / user-management models
+# ---------------------------------------------------------------------------
+
+SYSTEM_ROLES = ("super_admin", "admin", "viewer")
+"""Names of the three built-in roles that cannot be deleted."""
+
+ALL_PERMISSIONS = (
+    "plugins:read",
+    "plugins:write",
+    "ingestion:trigger",
+    "metrics:read",
+    "settings:read",
+    "settings:write",
+    "users:read",
+    "users:write",
+    "users:invite",
+)
+"""Canonical permission strings enforced by require_permission."""
+
+
+class User(Base):
+    """An admin-console user account.
+
+    Attributes:
+        id: Surrogate primary key.
+        email: Unique login email.
+        password_hash: bcrypt hash of the password.
+        is_active: Whether the account can authenticate.
+        created_at: Row creation timestamp.
+        updated_at: Last-update timestamp.
+        roles: Roles assigned to this user.
+        permissions: Per-user permission overrides.
+        refresh_tokens: Refresh tokens belonging to this user.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+
+    roles: Mapped[list["Role"]] = relationship(
+        secondary="user_roles", back_populates="users", lazy="selectin"
+    )
+    permissions: Mapped[list["UserPermission"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", lazy="selectin"
+    )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class Role(Base):
+    """A named set of permissions that can be assigned to users.
+
+    Attributes:
+        id: Surrogate primary key.
+        name: Unique role name (e.g. super_admin, admin, viewer).
+        description: Optional human-readable description.
+        is_system: True for built-in roles that cannot be deleted.
+        created_at: Row creation timestamp.
+        permissions: Permissions granted to members of this role.
+        users: Users who hold this role.
+    """
+
+    __tablename__ = "roles"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_system: Mapped[bool] = mapped_column(nullable=False, server_default=text("false"))
+    created_at: Mapped[datetime] = _created_at()
+
+    permissions: Mapped[list["RolePermission"]] = relationship(
+        back_populates="role", cascade="all, delete-orphan", lazy="selectin"
+    )
+    users: Mapped[list[User]] = relationship(
+        secondary="user_roles", back_populates="roles"
+    )
+
+
+class RolePermission(Base):
+    """A single permission string granted to a role.
+
+    Attributes:
+        role_id: Owning role.
+        permission: Permission string (e.g. plugins:write).
+        role: The owning role.
+    """
+
+    __tablename__ = "role_permissions"
+
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, primary_key=True
+    )
+    permission: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+
+    role: Mapped[Role] = relationship(back_populates="permissions")
+
+
+class UserRole(Base):
+    """Association table linking users to roles.
+
+    Attributes:
+        user_id: The user.
+        role_id: The assigned role.
+    """
+
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True
+    )
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, primary_key=True
+    )
+
+
+class UserPermission(Base):
+    """Per-user permission override — adds or explicitly denies a permission.
+
+    Attributes:
+        user_id: The user this override applies to.
+        permission: The permission string being overridden.
+        granted: True adds the permission; False removes it even if a role grants it.
+        user: The owning user.
+    """
+
+    __tablename__ = "user_permissions"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True
+    )
+    permission: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    granted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="permissions")
+
+
+class RefreshToken(Base):
+    """A long-lived refresh token tied to a user session.
+
+    Attributes:
+        id: Surrogate primary key.
+        user_id: Owning user.
+        token_hash: SHA-256 hex digest of the raw token UUID.
+        expires_at: Expiry timestamp (7 days from creation by default).
+        revoked_at: Set on logout; null means the token is still valid.
+        user: The owning user.
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="refresh_tokens")
+
+
+class InviteToken(Base):
+    """A one-time invite token sent to a prospective user.
+
+    Attributes:
+        id: Surrogate primary key.
+        email: Invitee email address.
+        token_hash: SHA-256 hex digest of the raw token UUID.
+        role_id: Role assigned to the new account on acceptance.
+        expires_at: Expiry timestamp (48 hours from creation).
+        used_at: Set when the invite is accepted; null means unused.
+    """
+
+    __tablename__ = "invite_tokens"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    role_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

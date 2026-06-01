@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar } from "@/components/ui/avatar";
-import { getApiBase, getToken, setApiBase, setToken } from "@/lib/config";
+import { getApiBase, setApiBase } from "@/lib/config";
 import { getProfile, setProfile } from "@/lib/profile";
 import { extractErrorMessage } from "@/lib/queryClient";
 
@@ -134,19 +134,16 @@ function ConnectionCard() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [api, setApi] = useState(getApiBase());
-  const [token, setTok] = useState(getToken());
   const [testing, setTesting] = useState(false);
 
   function save() {
     setApiBase(api.trim());
-    setToken(token.trim());
     void queryClient.invalidateQueries();
     toast.ok("Settings saved.");
   }
 
   async function test() {
     setApiBase(api.trim());
-    setToken(token.trim());
     setTesting(true);
     try {
       const health = await getHealth();
@@ -172,12 +169,6 @@ function ConnectionCard() {
             onChange={(e) => setApi(e.target.value)}
             placeholder="http://localhost:8000"
           />
-        </Field>
-        <Field
-          label="Admin bearer token"
-          hint="Stored in this browser only. Required for /api/v1/admin/* endpoints."
-        >
-          <Input type="password" value={token} onChange={(e) => setTok(e.target.value)} />
         </Field>
         <div className="flex gap-2">
           <Button aria-label="Save connection" onClick={save}>

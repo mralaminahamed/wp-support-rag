@@ -55,7 +55,7 @@ export function AuthLayout({ children, title, description }: AuthLayoutProps) {
             <h1 className="text-2xl font-bold text-white leading-tight">
               WordPress support,<br />powered by AI
             </h1>
-            <p className="mt-3 text-sm text-[#4b6284] leading-relaxed">
+            <p className="mt-3 text-sm text-[#8eb0d4] leading-relaxed">
               Instant, grounded answers from your plugin documentation.
             </p>
           </div>
@@ -70,14 +70,14 @@ export function AuthLayout({ children, title, description }: AuthLayoutProps) {
                 <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-white/5 ring-1 ring-white/8">
                   <i className={`ti ${item.icon} text-[13px] text-primary`} />
                 </span>
-                <span className="text-[13px] text-[#4b6284]">{item.text}</span>
+                <span className="text-[13px] text-[#8eb0d4]">{item.text}</span>
               </li>
             ))}
           </ul>
         </div>
 
         {/* Footer */}
-        <p className="relative z-10 text-[11px] text-[#2d3f5c]">
+        <p className="relative z-10 text-[11px] text-[#4b6284]">
           Admin console · WP Support RAG
         </p>
       </div>
@@ -97,7 +97,7 @@ export function AuthLayout({ children, title, description }: AuthLayoutProps) {
           <div className="space-y-1.5">
             <h2 className="text-xl font-bold tracking-tight text-foreground">{title}</h2>
             {description && (
-              <p className="text-sm text-text-3 leading-relaxed">{description}</p>
+              <p className="text-sm text-text-2 leading-relaxed">{description}</p>
             )}
           </div>
 

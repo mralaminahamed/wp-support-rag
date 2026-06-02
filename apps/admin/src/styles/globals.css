@@ -46,6 +46,7 @@
   --color-nav: var(--nav);
   --color-nav-border: var(--nav-border);
   --color-nav-text: #4b6284;
+  --color-nav-text-hover: #8eb0d4;
   --color-nav-text-active: #93c5fd;
   --color-nav-active-bg: rgba(99, 102, 241, 0.14);
 

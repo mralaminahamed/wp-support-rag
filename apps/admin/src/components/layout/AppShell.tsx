@@ -51,7 +51,7 @@ function NavItem({
         )
       }
     >
-      <i className={`ti ${icon} text-base shrink-0`} />
+      <i aria-hidden="true" className={`ti ${icon} text-base shrink-0`} />
       {!collapsed && <span className="flex-1 truncate">{label}</span>}
     </NavLink>
   );
@@ -141,6 +141,7 @@ export function AppShell() {
               )}
             >
               <i
+                aria-hidden="true"
                 className={cn(
                   "ti text-sm shrink-0",
                   collapsed ? "ti-chevrons-right" : "ti-chevrons-left",

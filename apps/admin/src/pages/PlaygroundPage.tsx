@@ -21,6 +21,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { extractErrorMessage } from "@/lib/queryClient";
 import type { QueryResponse, SourceRef } from "@/types/api";
 
+function uuidv4(): string {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b.set([(b[6]! & 0x0f) | 0x40], 6);
+  b.set([(b[8]! & 0x3f) | 0x80], 8);
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 const ROUTE = "__route__";
 
 const EXAMPLES = [
@@ -81,7 +90,7 @@ export function PlaygroundPage() {
     const q = (override ?? input).trim();
     if (!q || busy) return;
     setInput("");
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     setMessages((m) => [
       ...m,
       { id, question: q, live: "", result: null, error: null, feedbackSent: false },

@@ -10,6 +10,7 @@ export const PLUGINS = [
     wporg_slug: "swift-menu-duplicator",
     github_repo: "mralaminahamed/swift-menu-duplicator",
     source_count: 7,
+    chunk_count: 420,
   },
   {
     slug: "warranty-cart",
@@ -18,6 +19,7 @@ export const PLUGINS = [
     wporg_slug: "warranty-cart",
     github_repo: null,
     source_count: 3,
+    chunk_count: 0,
   },
 ];
 
@@ -87,8 +89,29 @@ const LLM_CONFIG = {
   embedding: EMBEDDING_CONFIG,
 };
 
+const MOCK_USER = {
+  id: "00000000-0000-0000-0000-000000000001",
+  email: "admin@example.com",
+  roles: ["admin"],
+  permissions: [
+    "plugins:read", "plugins:write",
+    "ingestion:trigger",
+    "metrics:read",
+    "settings:read", "settings:write",
+    "users:read", "users:write",
+  ],
+  is_active: true,
+  created_at: "2026-01-01T00:00:00Z",
+};
+
 /** Register all API mocks. Specific routes are added last so they win. */
 export async function mockApi(page: Page): Promise<void> {
+  // Auth — must resolve before RequireAuth renders any protected page
+  await page.route("**/api/v1/auth/me", (route) => route.fulfill({ json: MOCK_USER }));
+  await page.route("**/api/v1/admin/setup/status", (route) =>
+    route.fulfill({ json: { complete: true } }),
+  );
+
   await page.route("**/health", (route) =>
     route.fulfill({
       json: {
@@ -120,13 +143,70 @@ export async function mockApi(page: Page): Promise<void> {
     }),
   );
 
-  await page.route("**/api/v1/admin/plugins/*/sources", (route) =>
-    route.fulfill({
-      json: [
-        { source_type: "wporg_faq", enabled: true, last_ingested_at: "2026-05-29T00:00:00Z" },
-        { source_type: "github_readme", enabled: true, last_ingested_at: null },
-      ],
-    }),
+  await page.route("**/api/v1/admin/plugins/*/sources/*", (route) => {
+    const method = route.request().method();
+    if (method === "PATCH") {
+      const body = route.request().postDataJSON() as { enabled: boolean };
+      route.fulfill({
+        json: {
+          source_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          source_type: "wporg_faq",
+          enabled: body.enabled,
+          last_ingested_at: "2026-05-29T00:00:00Z",
+        },
+      });
+    } else if (method === "DELETE") {
+      route.fulfill({ status: 204, body: "" });
+    } else {
+      route.fulfill({ status: 404, json: { detail: "not found" } });
+    }
+  });
+
+  await page.route("**/api/v1/admin/plugins/*/sources", (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { source_type: string };
+      route.fulfill({
+        status: 201,
+        json: {
+          source_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          source_type: body.source_type,
+          enabled: true,
+          last_ingested_at: null,
+        },
+      });
+    } else {
+      route.fulfill({
+        json: [
+          {
+            source_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            source_type: "wporg_faq",
+            enabled: true,
+            last_ingested_at: "2026-05-29T00:00:00Z",
+            run_status: "succeeded",
+            run_chunks: 120,
+            run_docs: 14,
+            run_error: null,
+            run_finished_at: "2026-05-29T01:00:00Z",
+          },
+          {
+            source_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+            source_type: "github_readme",
+            enabled: true,
+            last_ingested_at: null,
+            run_status: null,
+            run_chunks: null,
+            run_docs: null,
+            run_error: null,
+            run_finished_at: null,
+          },
+        ],
+      });
+    }
+  });
+
+  // Single-source ingest (more specific — registered first so it wins)
+  await page.route("**/api/v1/admin/ingest/*/*", (route) =>
+    route.fulfill({ json: { plugin_slug: "swift-menu-duplicator", enqueued_sources: 1 } }),
   );
 
   await page.route("**/api/v1/admin/ingest/*", (route) =>

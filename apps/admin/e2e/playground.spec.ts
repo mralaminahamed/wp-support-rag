@@ -7,6 +7,19 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/playground");
 });
 
+test("sample question click fires query", async ({ page }) => {
+  // Greeting examples visible on empty state
+  await expect(page.getByText("How do I install the plugin?")).toBeVisible();
+
+  await page.getByRole("checkbox").uncheck(); // disable streaming for mock compat
+  await page.getByText("How do I install the plugin?").click();
+
+  // User bubble shows the clicked question
+  await expect(page.getByText("How do I install the plugin?")).toBeVisible();
+  // Answer arrives
+  await expect(page.getByText(/Theme location assignments are not copied/i)).toBeVisible();
+});
+
 test("runs a query and submits feedback", async ({ page }) => {
   await page.getByPlaceholder("How do I duplicate a menu?").fill("Does it copy theme locations?");
   // Disable streaming to use the JSON /query endpoint.
@@ -21,6 +34,6 @@ test("runs a query and submits feedback", async ({ page }) => {
     "https://wordpress.org/plugins/swift-menu-duplicator/#faq",
   );
 
-  await page.getByRole("button", { name: "Yes" }).click();
+  await page.getByRole("button", { name: "Helpful", exact: true }).click();
   await expect(page.getByText(/Thanks for the feedback/i)).toBeVisible();
 });

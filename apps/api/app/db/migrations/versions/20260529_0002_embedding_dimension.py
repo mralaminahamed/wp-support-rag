@@ -10,18 +10,24 @@ table; the corpus is re-embedded by re-running ingestion afterwards (FR-PR-7).
 The target type comes from :func:`embedding_type`, which reads configuration, so
 the column always matches the active provider at upgrade time.
 
+Revision ID: 0002
+Revises: 0001
+Create Date: 2026-05-29
+
 Author: Al Amin Ahamed.
 """
 
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 from alembic import op
 from app.db.models import HNSW_OPS, embedding_type
 
 revision: str = "0002"
 down_revision: str | None = "0001"
-branch_labels: None = None
-depends_on: None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

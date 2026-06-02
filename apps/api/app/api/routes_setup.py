@@ -178,15 +178,18 @@ async def create_admin(
 ) -> CreateAdminResponse:
     """Create the first super-admin account and issue session cookies.
 
-    Only works when setup is not yet complete and the users table is empty.
+    Only works when setup is not yet complete. Wipes any existing users before
+    creating the new account so navigating directly to this step (skipping the
+    explicit reset in the network step) still produces a clean state.
     Issues access + refresh cookies so subsequent wizard steps work without
     the user having to log in separately.
     """
     await _assert_setup_incomplete(session)
 
-    existing = await session.scalar(select(User).limit(1))
-    if existing is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="users already exist")
+    # Wipe existing users (cascade handles user_roles, refresh_tokens, etc.).
+    # This makes the step idempotent: works whether or not /setup/reset was called.
+    await session.execute(text("TRUNCATE TABLE users RESTART IDENTITY CASCADE"))
+    await session.commit()
 
     role = await session.scalar(select(Role).where(Role.name == "super_admin"))
     if role is None:

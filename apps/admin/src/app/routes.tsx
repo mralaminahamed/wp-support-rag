@@ -15,7 +15,6 @@ import {
   ProfileSecurity,
 } from "@/pages/ProfilePage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
-import { EmbeddingSection, GenerationSection, SettingsPage } from "@/pages/SettingsPage";
 import { SetupWizardPage } from "@/pages/SetupWizardPage";
 import { UsersPage } from "@/pages/UsersPage";
 
@@ -52,15 +51,6 @@ export const router = createBrowserRouter([
           { path: "plugins", element: <PluginsPage /> },
           { path: "playground", element: <PlaygroundPage /> },
           { path: "users", element: <UsersPage /> },
-          {
-            path: "settings",
-            element: <SettingsPage />,
-            children: [
-              { index: true, element: <Navigate to="generation" replace /> },
-              { path: "generation", element: <GenerationSection /> },
-              { path: "embeddings", element: <EmbeddingSection /> },
-            ],
-          },
           {
             path: "profile",
             element: <ProfilePage />,

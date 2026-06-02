@@ -178,7 +178,7 @@ function LeftPanel({ step }: { step: Step }) {
       </div>
 
       <p className="relative text-[11px] text-[#2e4060]">
-        You can change all of these settings later from the Settings page.
+        You can update the provider configuration via environment variables.
       </p>
     </div>
   );

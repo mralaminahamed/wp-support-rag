@@ -36,7 +36,7 @@ from app.api.schemas import (
 )
 from app.config import EmbeddingProvider, ProviderName, Settings
 from app.db.engine import get_session
-from app.db.models import Feedback, Plugin, Query
+from app.db.models import Chunk, Feedback, IngestionRun, Plugin, Query, Source
 from app.ingestion.registry import (
     PluginSpec,
     SourceSpec,
@@ -372,20 +372,39 @@ async def list_registered_plugins(
         list[PluginSummary]: One summary per plugin.
     """
     plugins = await list_plugins(session)
-    summaries: list[PluginSummary] = []
-    for plugin in plugins:
-        sources = await list_sources(session, plugin.id)
-        summaries.append(
-            PluginSummary(
-                slug=plugin.slug,
-                name=plugin.name,
-                status=plugin.status,
-                wporg_slug=plugin.wporg_slug,
-                github_repo=plugin.github_repo,
-                source_count=len(sources),
-            )
+    if not plugins:
+        return []
+
+    plugin_ids = [p.id for p in plugins]
+
+    # Chunk counts per plugin — single aggregate query
+    chunk_rows = await session.execute(
+        select(Chunk.plugin_id, func.count().label("cnt"))
+        .where(Chunk.plugin_id.in_(plugin_ids))
+        .group_by(Chunk.plugin_id)
+    )
+    chunk_map: dict[object, int] = {row.plugin_id: row.cnt for row in chunk_rows}
+
+    # Source counts per plugin — single query
+    source_rows = await session.execute(
+        select(Source.plugin_id, func.count().label("cnt"))
+        .where(Source.plugin_id.in_(plugin_ids))
+        .group_by(Source.plugin_id)
+    )
+    source_map: dict[object, int] = {row.plugin_id: row.cnt for row in source_rows}
+
+    return [
+        PluginSummary(
+            slug=p.slug,
+            name=p.name,
+            status=p.status,
+            wporg_slug=p.wporg_slug,
+            github_repo=p.github_repo,
+            source_count=source_map.get(p.id, 0),
+            chunk_count=chunk_map.get(p.id, 0),
         )
-    return summaries
+        for p in plugins
+    ]
 
 
 @router.get("/plugins/{plugin_slug}/sources", response_model=list[SourceSummary])
@@ -410,16 +429,50 @@ async def list_plugin_sources(
     if plugin is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
     sources = await list_sources(session, plugin.id)
-    return [
-        SourceSummary(
-            source_type=source.source_type,
-            enabled=source.enabled,
-            last_ingested_at=source.last_ingested_at.isoformat()
-            if source.last_ingested_at
-            else None,
+
+    last_run_map: dict[object, IngestionRun | None] = {}
+    if sources:
+        source_ids = [s.id for s in sources]
+        # DISTINCT ON (source_id) ordered by started_at DESC — most recent run per source
+        inner = (
+            select(
+                IngestionRun,
+                func.row_number()
+                .over(
+                    partition_by=IngestionRun.source_id,
+                    order_by=IngestionRun.started_at.desc(),
+                )
+                .label("rn"),
+            )
+            .where(IngestionRun.source_id.in_(source_ids))
+            .subquery()
         )
-        for source in sources
-    ]
+        run_rows = await session.execute(
+            select(IngestionRun).join(inner, IngestionRun.id == inner.c.id).where(inner.c.rn == 1)
+        )
+        for ingestion_run in run_rows.scalars():
+            last_run_map[ingestion_run.source_id] = ingestion_run
+
+    summaries: list[SourceSummary] = []
+    for source in sources:
+        run = last_run_map.get(source.id)
+        summaries.append(
+            SourceSummary(
+                source_type=source.source_type,
+                enabled=source.enabled,
+                last_ingested_at=source.last_ingested_at.isoformat()
+                if source.last_ingested_at
+                else None,
+                run_status=run.status if run else None,
+                run_chunks=run.chunks_created if run else None,
+                run_docs=run.documents_processed if run else None,
+                run_error=run.error if run else None,
+                run_finished_at=run.finished_at.isoformat()
+                if run and run.finished_at is not None
+                else None,
+            )
+        )
+    return summaries
 
 
 @router.post("/ingest", response_model=IngestAllResponse)

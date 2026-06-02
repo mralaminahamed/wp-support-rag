@@ -145,6 +145,7 @@ class PluginSummary(BaseModel):
         wporg_slug: WordPress.org slug, if set.
         github_repo: GitHub repository, if set.
         source_count: Number of attached sources.
+        chunk_count: Total chunks indexed for this plugin.
     """
 
     slug: str
@@ -153,6 +154,7 @@ class PluginSummary(BaseModel):
     wporg_slug: str | None
     github_repo: str | None
     source_count: int
+    chunk_count: int
 
 
 class SourceSummary(BaseModel):
@@ -162,11 +164,21 @@ class SourceSummary(BaseModel):
         source_type: The typed source kind.
         enabled: Whether the source is enabled.
         last_ingested_at: ISO timestamp of the last ingestion, if any.
+        run_status: Status of the most recent ingestion run, if any.
+        run_chunks: Chunks created in the most recent run, if any.
+        run_docs: Documents processed in the most recent run, if any.
+        run_error: Error message from the most recent failed run, if any.
+        run_finished_at: ISO timestamp when the most recent run finished, if any.
     """
 
     source_type: str
     enabled: bool
     last_ingested_at: str | None
+    run_status: str | None = None
+    run_chunks: int | None = None
+    run_docs: int | None = None
+    run_error: str | None = None
+    run_finished_at: str | None = None
 
 
 class IngestTriggerResponse(BaseModel):

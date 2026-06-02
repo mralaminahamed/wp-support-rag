@@ -138,6 +138,30 @@ export async function completeSetup(): Promise<SetupStatus> {
   return res.data;
 }
 
+export async function setupReset(): Promise<void> {
+  await apiClient.post("/api/v1/admin/setup/reset");
+}
+
+export async function getSetupNetwork(): Promise<{ admin_url: string | null }> {
+  const res = await apiClient.get<{ admin_url: string | null }>("/api/v1/admin/setup/network");
+  return res.data;
+}
+
+export async function saveSetupNetwork(adminUrl: string): Promise<void> {
+  await apiClient.put("/api/v1/admin/setup/network", { admin_url: adminUrl });
+}
+
+export async function setupCreateAdmin(
+  email: string,
+  password: string,
+): Promise<{ id: string; email: string }> {
+  const res = await apiClient.post<{ id: string; email: string }>(
+    "/api/v1/admin/setup/create-admin",
+    { email, password },
+  );
+  return res.data;
+}
+
 // ---------------------------------------------------------------------------
 // Conversation threads
 // ---------------------------------------------------------------------------

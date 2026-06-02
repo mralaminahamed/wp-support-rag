@@ -579,6 +579,50 @@ class SetupStatusResponse(BaseModel):
     complete: bool
 
 
+class NetworkConfigResponse(BaseModel):
+    """Stored network / admin URL config.
+
+    Attributes:
+        admin_url: The public base URL of this admin console (used for server-generated links).
+    """
+
+    admin_url: str | None
+
+
+class NetworkConfigRequest(BaseModel):
+    """Set the admin URL during setup.
+
+    Attributes:
+        admin_url: The public base URL (e.g. http://192.168.1.10 for LAN access).
+    """
+
+    admin_url: str = Field(max_length=500)
+
+
+class CreateAdminRequest(BaseModel):
+    """Create the first super-admin account during setup.
+
+    Attributes:
+        email: Admin email address.
+        password: Plaintext password (hashed server-side).
+    """
+
+    email: str = Field(max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class CreateAdminResponse(BaseModel):
+    """Confirmation of admin account creation.
+
+    Attributes:
+        id: New user UUID.
+        email: Admin email address.
+    """
+
+    id: str
+    email: str
+
+
 # ---------------------------------------------------------------------------
 # Conversation thread schemas
 # ---------------------------------------------------------------------------

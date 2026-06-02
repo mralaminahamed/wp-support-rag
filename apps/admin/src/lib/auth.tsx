@@ -2,7 +2,7 @@
 // On mount calls GET /api/v1/auth/me; redirects to /login on 401.
 // Author: Al Amin Ahamed.
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getMe, logout as apiLogout } from "@/api/auth";
 import { getSetupStatus } from "@/api/admin";
@@ -64,31 +64,26 @@ export function useAuth(): AuthContextValue {
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  const location = useLocation();
 
+  // Setup status is a public endpoint — check it before login so a fresh
+  // install (no users) redirects to the wizard instead of the login page.
   const setupStatus = useQuery({
     queryKey: ["setup-status"],
     queryFn: getSetupStatus,
-    enabled: !isLoading && user !== null,
     staleTime: Infinity,
     retry: false,
   });
 
-  // Still loading auth or (auth ok but setup status pending) — render nothing
-  if (isLoading || (!isLoading && user !== null && setupStatus.isPending)) return null;
+  if (setupStatus.isPending) return null;
 
-  // Not logged in → login page
-  if (user === null) return <Navigate to="/login" replace />;
-
-  // Setup status loaded: enforce the gate (fail open on network error)
-  if (setupStatus.data !== undefined) {
-    if (!setupStatus.data.complete && location.pathname !== "/setup") {
-      return <Navigate to="/setup" replace />;
-    }
-    if (setupStatus.data.complete && location.pathname === "/setup") {
-      return <Navigate to="/" replace />;
-    }
+  // Setup not complete → wizard
+  if (setupStatus.data && !setupStatus.data.complete) {
+    return <Navigate to="/setup/network" replace />;
   }
+
+  // Setup complete — enforce login
+  if (isLoading) return null;
+  if (user === null) return <Navigate to="/login" replace />;
 
   return <>{children}</>;
 }

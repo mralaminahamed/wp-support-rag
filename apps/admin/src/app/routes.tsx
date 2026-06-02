@@ -15,7 +15,14 @@ import {
   ProfileSecurity,
 } from "@/pages/ProfilePage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
-import { SetupWizardPage } from "@/pages/SetupWizardPage";
+import {
+  AdminStep,
+  EmbeddingsStep,
+  GenerationStep,
+  NetworkStep,
+  PluginStep,
+  SetupWizardLayout,
+} from "@/pages/SetupWizardPage";
 import { UsersPage } from "@/pages/UsersPage";
 
 function Root() {
@@ -42,7 +49,18 @@ export const router = createBrowserRouter([
       { path: "/forgot-password", element: <ForgotPasswordPage /> },
       { path: "/reset-password", element: <ResetPasswordPage /> },
       { path: "/accept-invite", element: <AcceptInvitePage /> },
-      { path: "/setup", element: <RequireAuth><SetupWizardPage /></RequireAuth> },
+      {
+        path: "/setup",
+        element: <SetupWizardLayout />,
+        children: [
+          { index: true, element: <Navigate to="network" replace /> },
+          { path: "network", element: <NetworkStep /> },
+          { path: "admin", element: <AdminStep /> },
+          { path: "generation", element: <GenerationStep /> },
+          { path: "embeddings", element: <EmbeddingsStep /> },
+          { path: "plugin", element: <PluginStep /> },
+        ],
+      },
       {
         path: "/",
         element: <ProtectedShell />,

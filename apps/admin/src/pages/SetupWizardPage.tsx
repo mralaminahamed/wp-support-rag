@@ -1,14 +1,20 @@
-// First-run setup wizard: generation → embeddings → first plugin. Author: Al Amin Ahamed.
+// First-run setup wizard: network → admin → generation → embeddings → plugin.
+// Each step is a sub-route under /setup/*. Author: Al Amin Ahamed.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   completeSetup,
   getLlmConfig,
   getOllamaModels,
+  getSetupNetwork,
+  getSetupStatus,
   ingestAll,
   ingestPlugin,
   registerPlugin,
+  saveSetupNetwork,
+  setupCreateAdmin,
+  setupReset,
   updateEmbeddingConfig,
   updateLlmConfig,
 } from "@/api/admin";
@@ -27,22 +33,25 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { extractErrorMessage } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import type { LLMConfig, OllamaModels } from "@/types/api";
+import type { OllamaModels } from "@/types/api";
 import { SOURCE_TYPES } from "@/types/api";
 
-type Step = 1 | 2 | 3;
-
-const STEP_LABELS = ["Generation", "Embeddings", "First Plugin"];
+const STEP_LABELS = ["Network", "Admin", "Generation", "Embeddings", "First Plugin"];
+const STEP_ROUTES = ["network", "admin", "generation", "embeddings", "plugin"];
 
 // ---------------------------------------------------------------------------
 // Stepper
 // ---------------------------------------------------------------------------
 
-function Stepper({ current }: { current: Step }) {
+function Stepper() {
+  const { pathname } = useLocation();
+  const idx = STEP_ROUTES.findIndex((r) => pathname.endsWith(`/${r}`));
+  const current = (idx === -1 ? 0 : idx) + 1;
+
   return (
     <div className="flex items-center">
       {STEP_LABELS.map((label, i) => {
-        const n = (i + 1) as Step;
+        const n = i + 1;
         const done = n < current;
         const active = n === current;
         return (
@@ -89,12 +98,18 @@ function Stepper({ current }: { current: Step }) {
 // ---------------------------------------------------------------------------
 
 const STEP_SUMMARIES = [
+  { icon: "ti-network", text: "Select network mode and set the admin URL." },
+  { icon: "ti-shield-lock", text: "Create the super-admin account." },
   { icon: "ti-robot", text: "Choose your AI generation provider and model." },
   { icon: "ti-database", text: "Configure the embedding model for semantic search." },
   { icon: "ti-puzzle", text: "Register your first plugin to start ingesting docs." },
 ];
 
-function LeftPanel({ step }: { step: Step }) {
+function LeftPanel() {
+  const { pathname } = useLocation();
+  const idx = STEP_ROUTES.findIndex((r) => pathname.endsWith(`/${r}`));
+  const step = (idx === -1 ? 0 : idx) + 1;
+
   return (
     <div
       className="hidden lg:flex w-[360px] shrink-0 flex-col justify-between p-12 relative overflow-hidden"
@@ -127,7 +142,7 @@ function LeftPanel({ step }: { step: Step }) {
           Let's get you set up
         </h1>
         <p className="text-sm text-[#4b6284] leading-relaxed">
-          Configure your AI providers and add your first plugin in three steps.
+          Configure network access, AI providers, and add your first plugin.
         </p>
 
         <div className="mt-8 space-y-4">
@@ -178,7 +193,7 @@ function LeftPanel({ step }: { step: Step }) {
       </div>
 
       <p className="relative text-[11px] text-[#2e4060]">
-        You can update the provider configuration via environment variables.
+        You can update provider configuration via environment variables.
       </p>
     </div>
   );
@@ -187,6 +202,14 @@ function LeftPanel({ step }: { step: Step }) {
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
+
+function InlineError({ message }: { message: string }) {
+  return (
+    <p className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+      <i className="ti ti-alert-circle shrink-0" /> {message}
+    </p>
+  );
+}
 
 function ModelField({
   hint,
@@ -230,42 +253,333 @@ function ModelField({
   );
 }
 
-function InlineError({ message }: { message: string }) {
+// ---------------------------------------------------------------------------
+// Layout
+// ---------------------------------------------------------------------------
+
+export function SetupWizardLayout() {
+  const setupStatus = useQuery({
+    queryKey: ["setup-status"],
+    queryFn: getSetupStatus,
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  if (setupStatus.isPending) return null;
+
+  // If setup already complete, redirect to the app
+  if (setupStatus.data?.complete) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
-    <p className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-      <i className="ti ti-alert-circle shrink-0" /> {message}
-    </p>
+    <div className="flex min-h-screen" style={{ backgroundColor: "var(--background)" }}>
+      <LeftPanel />
+      <div className="flex flex-1 items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-[460px] space-y-8">
+          <Stepper />
+          <Outlet />
+        </div>
+      </div>
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Step 1: Generation provider
+// Step 1: Network
 // ---------------------------------------------------------------------------
 
-function Step1Generation({
-  config,
-  ollama,
-  provider,
-  model,
-  onProvider,
-  onModel,
-  error,
-  pending,
-  onNext,
-}: {
-  config: LLMConfig | undefined;
-  ollama: OllamaModels | undefined;
-  provider: string;
-  model: string;
-  onProvider: (p: string) => void;
-  onModel: (m: string) => void;
-  error: string | null;
-  pending: boolean;
-  onNext: () => void;
-}) {
-  const selected = config?.providers.find((p) => p.name === provider);
+export function NetworkStep() {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<"localhost" | "lan">("localhost");
+  const [ip, setIp] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
-  if (!config) return <Skeleton className="h-64 w-full" />;
+  // Pre-fill based on stored config and browser URL
+  const networkQuery = useQuery({ queryKey: ["setup-network"], queryFn: getSetupNetwork });
+
+  useEffect(() => {
+    const browserHost = window.location.hostname;
+    const onLan = browserHost !== "localhost" && browserHost !== "127.0.0.1";
+
+    if (networkQuery.data?.admin_url) {
+      const stored = networkQuery.data.admin_url;
+      const extractedIp = stored.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const isStoredLan = extractedIp !== "localhost" && extractedIp !== "127.0.0.1";
+      setMode(isStoredLan ? "lan" : "localhost");
+      setIp(isStoredLan ? extractedIp : onLan ? browserHost : "");
+    } else if (onLan) {
+      setMode("lan");
+      setIp(browserHost);
+    }
+  }, [networkQuery.data]);
+
+  async function handleNext() {
+    setError(null);
+    setPending(true);
+    try {
+      // 1. Wipe all existing data
+      await setupReset();
+      // 2. Save network config
+      const adminUrl =
+        mode === "lan"
+          ? `http://${ip.trim().replace(/^https?:\/\//, "").replace(/\/$/, "")}`
+          : "http://localhost";
+      await saveSetupNetwork(adminUrl);
+      void navigate("/setup/admin");
+    } catch (e) {
+      setError(extractErrorMessage(e));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const ipValid = mode === "localhost" || ip.trim().length > 0;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold tracking-tight">Network access</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          How will you access this admin panel?
+        </p>
+      </div>
+
+      {/* Warning banner */}
+      <div className="rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
+        <p className="font-semibold flex items-center gap-2">
+          <i className="ti ti-alert-triangle shrink-0" /> Fresh setup — all existing data will be wiped
+        </p>
+        <p className="mt-1 text-xs opacity-80">
+          Users, plugins, queries, and settings are permanently deleted. Roles are preserved.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {/* Localhost card */}
+        <label
+          className={cn(
+            "flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors",
+            mode === "localhost"
+              ? "border-primary bg-primary/5"
+              : "border-border hover:border-muted-foreground/40",
+          )}
+        >
+          <input
+            type="radio"
+            name="network-mode"
+            className="mt-0.5 accent-primary"
+            checked={mode === "localhost"}
+            onChange={() => setMode("localhost")}
+          />
+          <div>
+            <div className="text-sm font-semibold leading-tight">Localhost only</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              Access from this machine only (http://localhost)
+            </div>
+          </div>
+        </label>
+
+        {/* LAN card */}
+        <label
+          className={cn(
+            "flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors",
+            mode === "lan"
+              ? "border-primary bg-primary/5"
+              : "border-border hover:border-muted-foreground/40",
+          )}
+        >
+          <input
+            type="radio"
+            name="network-mode"
+            className="mt-0.5 accent-primary"
+            checked={mode === "lan"}
+            onChange={() => setMode("lan")}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold leading-tight">LAN / remote access</div>
+            <div className="mt-0.5 text-xs text-muted-foreground">
+              Access from other devices on your network
+            </div>
+            {mode === "lan" && (
+              <div className="mt-3">
+                <Input
+                  value={ip}
+                  onChange={(e) => setIp(e.target.value)}
+                  placeholder="192.168.1.100"
+                  className="font-mono text-[13px]"
+                  onClick={(e) => e.preventDefault()}
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  IP or hostname of this server on your network
+                </p>
+              </div>
+            )}
+          </div>
+        </label>
+      </div>
+
+      {/* Confirmation checkbox */}
+      <label className="flex items-start gap-2.5 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 size-4 accent-primary"
+          checked={confirmed}
+          onChange={(e) => setConfirmed(e.target.checked)}
+        />
+        <span className="text-sm text-muted-foreground">
+          I understand all existing data will be permanently deleted
+        </span>
+      </label>
+
+      {error && <InlineError message={error} />}
+
+      <div className="flex justify-end">
+        <Button
+          onClick={() => void handleNext()}
+          disabled={pending || !confirmed || !ipValid}
+        >
+          {pending ? "Setting up…" : "Start fresh setup"}
+          {!pending && <i className="ti ti-arrow-right ml-1.5 text-sm" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Admin account
+// ---------------------------------------------------------------------------
+
+export function AdminStep() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function handleNext() {
+    setError(null);
+    if (password !== confirm) {
+      setError("Passwords do not match");
+      return;
+    }
+    setPending(true);
+    try {
+      await setupCreateAdmin(email.trim(), password);
+      // Refresh auth state so subsequent steps work
+      await queryClient.invalidateQueries({ queryKey: ["me"] });
+      void navigate("/setup/generation");
+    } catch (e) {
+      setError(extractErrorMessage(e));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold tracking-tight">Admin account</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Create the super-admin account for this instance.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <Field label="Email">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="admin@example.com"
+            autoComplete="email"
+          />
+        </Field>
+
+        <Field label="Password">
+          <div className="relative">
+            <Input
+              type={showPw ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw((v) => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              tabIndex={-1}
+            >
+              <i className={`ti ${showPw ? "ti-eye-off" : "ti-eye"} text-sm`} />
+            </button>
+          </div>
+        </Field>
+
+        <Field label="Confirm password">
+          <Input
+            type={showPw ? "text" : "password"}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Repeat password"
+            autoComplete="new-password"
+          />
+        </Field>
+
+        {error && <InlineError message={error} />}
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          onClick={() => void handleNext()}
+          disabled={pending || !email.trim() || password.length < 8 || !confirm}
+        >
+          {pending ? "Creating…" : "Next"}
+          {!pending && <i className="ti ti-arrow-right ml-1.5 text-sm" />}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 3: Generation provider
+// ---------------------------------------------------------------------------
+
+export function GenerationStep() {
+  const navigate = useNavigate();
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
+  const ollama = useQuery({ queryKey: ["ollama-models"], queryFn: getOllamaModels });
+
+  useEffect(() => {
+    if (!config.data || provider) return;
+    setProvider(config.data.provider);
+    setModel(config.data.model);
+  }, [config.data, provider]);
+
+  const saveGen = useMutation({
+    mutationFn: () => updateLlmConfig({ provider, model: model.trim() || null }),
+    onSuccess: () => {
+      setError(null);
+      void navigate("/setup/embeddings");
+    },
+    onError: (e) => setError(extractErrorMessage(e)),
+  });
+
+  const selected = config.data?.providers.find((p) => p.name === provider);
+
+  if (!config.data) return <Skeleton className="h-64 w-full" />;
 
   return (
     <div className="space-y-5">
@@ -278,15 +592,22 @@ function Step1Generation({
 
       <div className="space-y-4">
         <Field label="Provider">
-          <Select value={provider} onValueChange={onProvider}>
+          <Select
+            value={provider}
+            onValueChange={(p) => {
+              setProvider(p);
+              const info = config.data.providers.find((x) => x.name === p);
+              if (info) setModel(info.default_model);
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {config.providers.map((p) => (
+              {config.data.providers.map((p) => (
                 <SelectItem key={p.name} value={p.name}>
                   {p.name}
-                  {p.name === config.default_provider ? " (default)" : ""}
+                  {p.name === config.data.default_provider ? " (default)" : ""}
                   {p.configured ? "" : " — not configured"}
                 </SelectItem>
               ))}
@@ -297,8 +618,7 @@ function Step1Generation({
         {provider !== "ollama" && (
           <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             <i className="ti ti-info-circle mr-1" />
-            {provider === "anthropic" ? "Anthropic" : "OpenAI"} credentials are
-            configured via{" "}
+            {provider === "anthropic" ? "Anthropic" : "OpenAI"} credentials are configured via{" "}
             <code className="font-mono">
               WPRAG_{provider.toUpperCase()}_API_KEY
             </code>{" "}
@@ -309,27 +629,32 @@ function Step1Generation({
         <ModelField
           hint={selected ? `Env default: ${selected.default_model}` : undefined}
           value={model}
-          onChange={onModel}
+          onChange={setModel}
           placeholder={selected?.default_model}
           isOllama={provider === "ollama"}
           listId="ollama-gen-models"
-          ollama={ollama}
+          ollama={ollama.data}
         />
 
         {selected && !selected.configured && (
           <p className="text-sm text-warning">
-            This provider has no credentials configured — generation will fail
-            until set in the environment.
+            This provider has no credentials configured — generation will fail until set.
           </p>
         )}
 
         {error && <InlineError message={error} />}
       </div>
 
-      <div className="flex justify-end">
-        <Button onClick={onNext} disabled={pending || !model.trim()}>
-          {pending ? "Saving…" : "Next"}
-          {!pending && <i className="ti ti-arrow-right ml-1.5 text-sm" />}
+      <div className="flex justify-between">
+        <Button variant="ghost" onClick={() => void navigate("/setup/admin")}>
+          <i className="ti ti-arrow-left mr-1.5 text-sm" /> Back
+        </Button>
+        <Button
+          onClick={() => { setError(null); saveGen.mutate(); }}
+          disabled={saveGen.isPending || !model.trim()}
+        >
+          {saveGen.isPending ? "Saving…" : "Next"}
+          {!saveGen.isPending && <i className="ti ti-arrow-right ml-1.5 text-sm" />}
         </Button>
       </div>
     </div>
@@ -337,36 +662,38 @@ function Step1Generation({
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: Embeddings
+// Step 4: Embeddings
 // ---------------------------------------------------------------------------
 
-function Step2Embeddings({
-  config,
-  ollama,
-  provider,
-  model,
-  onProvider,
-  onModel,
-  error,
-  pending,
-  onBack,
-  onNext,
-}: {
-  config: LLMConfig | undefined;
-  ollama: OllamaModels | undefined;
-  provider: string;
-  model: string;
-  onProvider: (p: string) => void;
-  onModel: (m: string) => void;
-  error: string | null;
-  pending: boolean;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  const embedding = config?.embedding;
+export function EmbeddingsStep() {
+  const navigate = useNavigate();
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
+  const ollama = useQuery({ queryKey: ["ollama-models"], queryFn: getOllamaModels });
+
+  useEffect(() => {
+    if (!config.data?.embedding || provider) return;
+    setProvider(config.data.embedding.provider);
+    setModel(config.data.embedding.model);
+  }, [config.data, provider]);
+
+  const saveEmbed = useMutation({
+    mutationFn: () => updateEmbeddingConfig({ provider, model: model.trim() || null }),
+    onSuccess: () => {
+      ingestAll().catch(() => undefined);
+      setError(null);
+      void navigate("/setup/plugin");
+    },
+    onError: (e) => setError(extractErrorMessage(e)),
+  });
+
+  const embedding = config.data?.embedding;
   const selected = embedding?.providers.find((p) => p.name === provider);
 
-  if (!config || !embedding) return <Skeleton className="h-64 w-full" />;
+  if (!config.data || !embedding) return <Skeleton className="h-64 w-full" />;
 
   return (
     <div className="space-y-5">
@@ -382,7 +709,14 @@ function Step2Embeddings({
           label="Provider"
           hint="The vector width is bound to the index; switching width needs a migration + re-embed."
         >
-          <Select value={provider} onValueChange={onProvider}>
+          <Select
+            value={provider}
+            onValueChange={(p) => {
+              setProvider(p);
+              const info = embedding.providers.find((x) => x.name === p);
+              if (info) setModel(info.default_model);
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -401,18 +735,17 @@ function Step2Embeddings({
         <ModelField
           hint={selected ? `Default: ${selected.default_model}` : undefined}
           value={model}
-          onChange={onModel}
+          onChange={setModel}
           placeholder={selected?.default_model}
           isOllama={provider === "ollama"}
           listId="ollama-embed-models"
-          ollama={ollama}
+          ollama={ollama.data}
         />
 
         {selected && !selected.applicable && (
           <p className="text-sm text-warning">
             {selected.dimensions} dims ≠ current {embedding.dimensions}. Set
-            WPRAG_EMBEDDING_PROVIDER, run migrations, and re-ingest to switch
-            width.
+            WPRAG_EMBEDDING_PROVIDER, run migrations, and re-ingest to switch width.
           </p>
         )}
 
@@ -420,12 +753,15 @@ function Step2Embeddings({
       </div>
 
       <div className="flex justify-between">
-        <Button variant="ghost" onClick={onBack}>
+        <Button variant="ghost" onClick={() => void navigate("/setup/generation")}>
           <i className="ti ti-arrow-left mr-1.5 text-sm" /> Back
         </Button>
-        <Button onClick={onNext} disabled={pending || !model.trim()}>
-          {pending ? "Saving…" : "Next"}
-          {!pending && <i className="ti ti-arrow-right ml-1.5 text-sm" />}
+        <Button
+          onClick={() => { setError(null); saveEmbed.mutate(); }}
+          disabled={saveEmbed.isPending || !model.trim()}
+        >
+          {saveEmbed.isPending ? "Saving…" : "Next"}
+          {!saveEmbed.isPending && <i className="ti ti-arrow-right ml-1.5 text-sm" />}
         </Button>
       </div>
     </div>
@@ -433,44 +769,53 @@ function Step2Embeddings({
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: First plugin
+// Step 5: First plugin
 // ---------------------------------------------------------------------------
 
-function Step3Plugin({
-  slug,
-  name,
-  wporgSlug,
-  githubRepo,
-  types,
-  onSlug,
-  onName,
-  onWporgSlug,
-  onGithubRepo,
-  onToggleType,
-  error,
-  phase,
-  onBack,
-  onFinish,
-}: {
-  slug: string;
-  name: string;
-  wporgSlug: string;
-  githubRepo: string;
-  types: string[];
-  onSlug: (v: string) => void;
-  onName: (v: string) => void;
-  onWporgSlug: (v: string) => void;
-  onGithubRepo: (v: string) => void;
-  onToggleType: (t: string) => void;
-  error: string | null;
-  phase: "idle" | "registering" | "completing";
-  onBack: () => void;
-  onFinish: (e: React.FormEvent) => void;
-}) {
+export function PluginStep() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [slug, setSlug] = useState("");
+  const [name, setName] = useState("");
+  const [wporgSlug, setWporgSlug] = useState("");
+  const [githubRepo, setGithubRepo] = useState("");
+  const [types, setTypes] = useState<string[]>(["wporg_faq", "wporg_changelog"]);
+  const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<"idle" | "registering" | "completing">("idle");
+
+  function toggleType(type: string) {
+    setTypes((cur) =>
+      cur.includes(type) ? cur.filter((t) => t !== type) : [...cur, type],
+    );
+  }
+
+  async function handleFinish(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      setPhase("registering");
+      await registerPlugin({
+        slug: slug.trim(),
+        name: name.trim(),
+        wporg_slug: wporgSlug.trim() || null,
+        github_repo: githubRepo.trim() || null,
+        source_types: types,
+      });
+      ingestPlugin(slug.trim()).catch(() => undefined);
+      setPhase("completing");
+      await completeSetup();
+      await queryClient.invalidateQueries({ queryKey: ["setup-status"] });
+      void navigate("/", { replace: true, state: { setupComplete: true } });
+    } catch (err) {
+      setError(extractErrorMessage(err));
+      setPhase("idle");
+    }
+  }
+
   const pending = phase !== "idle";
 
   return (
-    <form onSubmit={onFinish} className="space-y-5">
+    <form onSubmit={(e) => void handleFinish(e)} className="space-y-5">
       <div>
         <h2 className="text-xl font-bold tracking-tight">First plugin</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -482,7 +827,7 @@ function Step3Plugin({
         <Field label="Slug" hint="URL-safe identifier, e.g. my-plugin">
           <Input
             value={slug}
-            onChange={(e) => onSlug(e.target.value)}
+            onChange={(e) => setSlug(e.target.value)}
             placeholder="my-plugin"
             required
           />
@@ -490,7 +835,7 @@ function Step3Plugin({
         <Field label="Name">
           <Input
             value={name}
-            onChange={(e) => onName(e.target.value)}
+            onChange={(e) => setName(e.target.value)}
             placeholder="My Plugin"
             required
           />
@@ -498,14 +843,14 @@ function Step3Plugin({
         <Field label="WordPress.org slug" hint="Optional — enables wp.org sources.">
           <Input
             value={wporgSlug}
-            onChange={(e) => onWporgSlug(e.target.value)}
+            onChange={(e) => setWporgSlug(e.target.value)}
             placeholder="my-plugin"
           />
         </Field>
         <Field label="GitHub repo" hint="Optional — owner/name format.">
           <Input
             value={githubRepo}
-            onChange={(e) => onGithubRepo(e.target.value)}
+            onChange={(e) => setGithubRepo(e.target.value)}
             placeholder="acme/my-plugin"
           />
         </Field>
@@ -522,7 +867,7 @@ function Step3Plugin({
                   type="checkbox"
                   className="size-4 accent-primary"
                   checked={types.includes(type)}
-                  onChange={() => onToggleType(type)}
+                  onChange={() => toggleType(type)}
                 />
                 <span className="font-mono text-[13px]">{type}</span>
               </label>
@@ -534,13 +879,10 @@ function Step3Plugin({
       </div>
 
       <div className="flex justify-between">
-        <Button type="button" variant="ghost" onClick={onBack} disabled={pending}>
+        <Button type="button" variant="ghost" onClick={() => void navigate("/setup/embeddings")} disabled={pending}>
           <i className="ti ti-arrow-left mr-1.5 text-sm" /> Back
         </Button>
-        <Button
-          type="submit"
-          disabled={pending || !slug.trim() || !name.trim()}
-        >
+        <Button type="submit" disabled={pending || !slug.trim() || !name.trim()}>
           {phase === "registering"
             ? "Registering…"
             : phase === "completing"
@@ -550,179 +892,5 @@ function Step3Plugin({
         </Button>
       </div>
     </form>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SetupWizardPage
-// ---------------------------------------------------------------------------
-
-export function SetupWizardPage() {
-  const [step, setStep] = useState<Step>(1);
-
-  // Step 1
-  const [genProvider, setGenProvider] = useState("");
-  const [genModel, setGenModel] = useState("");
-
-  // Step 2
-  const [embedProvider, setEmbedProvider] = useState("");
-  const [embedModel, setEmbedModel] = useState("");
-
-  // Step 3
-  const [slug, setSlug] = useState("");
-  const [name, setName] = useState("");
-  const [wporgSlug, setWporgSlug] = useState("");
-  const [githubRepo, setGithubRepo] = useState("");
-  const [types, setTypes] = useState<string[]>(["wporg_faq", "wporg_changelog"]);
-
-  const [error, setError] = useState<string | null>(null);
-  const [step3Phase, setStep3Phase] = useState<"idle" | "registering" | "completing">("idle");
-
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const config = useQuery({ queryKey: ["llm-config"], queryFn: getLlmConfig });
-  const ollama = useQuery({ queryKey: ["ollama-models"], queryFn: getOllamaModels });
-
-  useEffect(() => {
-    if (!config.data) return;
-    if (!genProvider) {
-      setGenProvider(config.data.provider);
-      setGenModel(config.data.model);
-    }
-    if (!embedProvider && config.data.embedding) {
-      setEmbedProvider(config.data.embedding.provider);
-      setEmbedModel(config.data.embedding.model);
-    }
-  }, [config.data, genProvider, embedProvider]);
-
-  const saveGen = useMutation({
-    mutationFn: () =>
-      updateLlmConfig({ provider: genProvider, model: genModel.trim() || null }),
-    onSuccess: () => {
-      setError(null);
-      setStep(2);
-    },
-    onError: (e) => setError(extractErrorMessage(e)),
-  });
-
-  const saveEmbed = useMutation({
-    mutationFn: () =>
-      updateEmbeddingConfig({
-        provider: embedProvider,
-        model: embedModel.trim() || null,
-      }),
-    onSuccess: () => {
-      ingestAll().catch(() => undefined);
-      setError(null);
-      setStep(3);
-    },
-    onError: (e) => setError(extractErrorMessage(e)),
-  });
-
-  function toggleType(type: string) {
-    setTypes((cur) =>
-      cur.includes(type) ? cur.filter((t) => t !== type) : [...cur, type],
-    );
-  }
-
-  async function handleFinish(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    try {
-      setStep3Phase("registering");
-      await registerPlugin({
-        slug: slug.trim(),
-        name: name.trim(),
-        wporg_slug: wporgSlug.trim() || null,
-        github_repo: githubRepo.trim() || null,
-        source_types: types,
-      });
-      ingestPlugin(slug.trim()).catch(() => undefined);
-      setStep3Phase("completing");
-      await completeSetup();
-      await queryClient.invalidateQueries({ queryKey: ["setup-status"] });
-      navigate("/", { replace: true, state: { setupComplete: true } });
-    } catch (err) {
-      setError(extractErrorMessage(err));
-      setStep3Phase("idle");
-    }
-  }
-
-  return (
-    <div className="flex min-h-screen" style={{ backgroundColor: "var(--background)" }}>
-      <LeftPanel step={step} />
-      <div className="flex flex-1 items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-[440px] space-y-8">
-          <Stepper current={step} />
-          {step === 1 && (
-            <Step1Generation
-              config={config.data}
-              ollama={ollama.data}
-              provider={genProvider}
-              model={genModel}
-              onProvider={(p) => {
-                setGenProvider(p);
-                const info = config.data?.providers.find((x) => x.name === p);
-                if (info) setGenModel(info.default_model);
-              }}
-              onModel={setGenModel}
-              error={error}
-              pending={saveGen.isPending}
-              onNext={() => {
-                setError(null);
-                saveGen.mutate();
-              }}
-            />
-          )}
-          {step === 2 && (
-            <Step2Embeddings
-              config={config.data}
-              ollama={ollama.data}
-              provider={embedProvider}
-              model={embedModel}
-              onProvider={(p) => {
-                setEmbedProvider(p);
-                const info = config.data?.embedding?.providers.find(
-                  (x) => x.name === p,
-                );
-                if (info) setEmbedModel(info.default_model);
-              }}
-              onModel={setEmbedModel}
-              error={error}
-              pending={saveEmbed.isPending}
-              onBack={() => {
-                setError(null);
-                setStep(1);
-              }}
-              onNext={() => {
-                setError(null);
-                saveEmbed.mutate();
-              }}
-            />
-          )}
-          {step === 3 && (
-            <Step3Plugin
-              slug={slug}
-              name={name}
-              wporgSlug={wporgSlug}
-              githubRepo={githubRepo}
-              types={types}
-              onSlug={setSlug}
-              onName={setName}
-              onWporgSlug={setWporgSlug}
-              onGithubRepo={setGithubRepo}
-              onToggleType={toggleType}
-              error={error}
-              phase={step3Phase}
-              onBack={() => {
-                setError(null);
-                setStep(2);
-              }}
-              onFinish={handleFinish}
-            />
-          )}
-        </div>
-      </div>
-    </div>
   );
 }

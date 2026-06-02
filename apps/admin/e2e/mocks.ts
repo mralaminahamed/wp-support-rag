@@ -111,6 +111,15 @@ export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/v1/admin/setup/status", (route) =>
     route.fulfill({ json: { complete: true } }),
   );
+  await page.route("**/api/v1/admin/setup/network", (route) =>
+    route.fulfill({ json: { admin_url: null } }),
+  );
+  await page.route("**/api/v1/admin/setup/reset", (route) =>
+    route.fulfill({ json: { wiped: true } }),
+  );
+  await page.route("**/api/v1/admin/setup/create-admin", (route) =>
+    route.fulfill({ status: 201, json: { id: "u1", email: "admin@example.com" } }),
+  );
 
   await page.route("**/health", (route) =>
     route.fulfill({

@@ -533,3 +533,13 @@ class ChangePasswordRequest(BaseModel):
 
     current_password: str = Field(min_length=1, max_length=1024)
     new_password: str = Field(min_length=8, max_length=1024)
+
+
+class SetupStatusResponse(BaseModel):
+    """Response for setup status and completion endpoints.
+
+    Attributes:
+        complete: Whether the first-run setup wizard has been completed.
+    """
+
+    complete: bool

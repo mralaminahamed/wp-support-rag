@@ -185,3 +185,28 @@ def require_permission(permission: str) -> Callable:
         return claims
 
     return _dep
+
+
+async def require_any_admin(
+    request: Request,
+    settings: Settings = Depends(get_settings_dep),
+) -> UserClaims:
+    """FastAPI dependency that validates the auth cookie without a specific permission.
+
+    Args:
+        request: The incoming request (for the cookie).
+        settings: Application settings supplying the JWT secret.
+
+    Returns:
+        UserClaims: The decoded JWT claims.
+
+    Raises:
+        HTTPException: 401 when no valid cookie is present.
+    """
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="not authenticated",
+        )
+    return verify_jwt(token, secret=settings.jwt_secret.get_secret_value())

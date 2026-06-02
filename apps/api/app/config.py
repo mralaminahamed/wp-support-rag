@@ -169,12 +169,12 @@ class Settings(BaseSettings):
     # --- Retrieval (§2.4) ---
     rrf_k: int = Field(default=60, ge=1)
     retrieval_top_n: int = Field(default=40, ge=1)
-    retrieval_top_k: int = Field(default=8, ge=1)
-    ef_search: int = Field(default=80, ge=1)
+    retrieval_top_k: int = Field(default=10, ge=1)
+    ef_search: int = Field(default=100, ge=1)
     vector_weight: float = Field(default=1.0, ge=0.0)
     lexical_weight: float = Field(default=1.0, ge=0.0)
-    similarity_threshold: float = Field(default=0.15, ge=0.0, le=1.0)
-    rerank_enabled: bool = False
+    similarity_threshold: float = Field(default=0.25, ge=0.0, le=1.0)
+    rerank_enabled: bool = True
     route_max_plugins: int = Field(default=2, ge=1)
 
     # --- Caching (§2.5) ---

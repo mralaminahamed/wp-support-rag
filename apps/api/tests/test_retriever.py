@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from app.config import Settings
-from app.rag.reranker import LexicalOverlapReranker
+from app.rag.reranker import BM25Reranker
 from app.rag.retriever import RetrievedChunk, _fuse, _Hit, _passes_threshold
 from app.rag.router import cosine_similarity
 
@@ -92,7 +92,7 @@ async def test_lexical_overlap_reranker_orders_by_overlap() -> None:
         source_url="u",
         score=0.1,
     )
-    ordered = await LexicalOverlapReranker().rerank(
+    ordered = await BM25Reranker().rerank(
         "duplicate navigation menu submenu", [low, high]
     )
 

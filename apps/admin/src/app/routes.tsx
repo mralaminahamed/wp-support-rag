@@ -16,6 +16,7 @@ import {
 } from "@/pages/ProfilePage";
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage";
 import { EmbeddingSection, GenerationSection, SettingsPage } from "@/pages/SettingsPage";
+import { SetupWizardPage } from "@/pages/SetupWizardPage";
 import { UsersPage } from "@/pages/UsersPage";
 
 function Root() {
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
       { path: "/forgot-password", element: <ForgotPasswordPage /> },
       { path: "/reset-password", element: <ResetPasswordPage /> },
       { path: "/accept-invite", element: <AcceptInvitePage /> },
+      { path: "/setup", element: <RequireAuth><SetupWizardPage /></RequireAuth> },
       {
         path: "/",
         element: <ProtectedShell />,

@@ -1,6 +1,7 @@
 // Dashboard: KPIs, health, metrics, corpus, coverage, quick actions. Author: Al Amin Ahamed.
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getHealth, getMetrics, getRecentQueries, ingestAll, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,49 @@ function Bar({ value, max }: { value: number; max: number }) {
   return (
     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
       <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+    </div>
+  );
+}
+
+function SetupCompleteBanner() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [visible, setVisible] = useState(
+    () =>
+      location.state?.setupComplete === true &&
+      localStorage.getItem("setup-banner-dismissed") !== "true",
+  );
+
+  useEffect(() => {
+    if (location.state?.setupComplete) {
+      navigate(".", { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-accent px-4 py-3 text-sm">
+      <i className="ti ti-circle-check text-primary text-base shrink-0 mt-0.5" />
+      <div className="flex-1">
+        <span className="font-medium text-foreground">Setup complete</span>
+        <span className="text-muted-foreground ml-1">
+          — generation, embeddings, and your first plugin are configured.
+          Ingestion is running in the background.
+        </span>
+      </div>
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={() => {
+          localStorage.setItem("setup-banner-dismissed", "true");
+          setVisible(false);
+        }}
+        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <i className="ti ti-x text-sm" />
+      </button>
     </div>
   );
 }
@@ -45,6 +89,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-5">
+      <SetupCompleteBanner />
       <PageHeader
         title="Dashboard"
         description="Service health, query metrics, and corpus overview."

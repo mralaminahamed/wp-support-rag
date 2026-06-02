@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { extractErrorMessage } from "@/lib/queryClient";
-import type { SourceRef } from "@/types/api";
+import type { QueryResponse, SourceRef } from "@/types/api";
 
 const ROUTE = "__route__";
 
@@ -38,28 +38,11 @@ function hostOf(url: string): string {
   }
 }
 
-function copyText(text: string): void {
-  void navigator.clipboard?.writeText(text);
-}
-
-interface Result {
-  query_id: string;
-  answer: string;
-  citations: string[];
-  sources: SourceRef[];
-  cached: boolean;
-  degraded: boolean;
-  declined: boolean;
-  latency_ms: number;
-  provider: string;
-  model: string;
-}
-
 interface Turn {
   id: string;
   question: string;
   live: string;
-  result: Result | null;
+  result: QueryResponse | null;
   error: string | null;
   feedbackSent: boolean;
 }
@@ -71,16 +54,27 @@ export function PlaygroundPage() {
   const [messages, setMessages] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [slug, setSlug] = useState("");
-  const [streaming, setStreaming] = useState(true);
+  const [streaming, setStreaming] = useState(
+    () => localStorage.getItem("playground-streaming") !== "false",
+  );
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(0);
 
+  // Smooth scroll only when a new message is added; instant during streaming updates.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const isNew = messages.length > prevLengthRef.current;
+    prevLengthRef.current = messages.length;
+    bottomRef.current?.scrollIntoView({ behavior: isNew ? "smooth" : "auto", block: "end" });
   }, [messages]);
 
   function patch(id: string, change: Partial<Turn>) {
     setMessages((m) => m.map((t) => (t.id === id ? { ...t, ...change } : t)));
+  }
+
+  function handleSetStreaming(v: boolean) {
+    localStorage.setItem("playground-streaming", String(v));
+    setStreaming(v);
   }
 
   async function run(override?: string) {
@@ -99,14 +93,12 @@ export function PlaygroundPage() {
         const done = await streamQuery(reqInput, (t) =>
           setMessages((m) => m.map((x) => (x.id === id ? { ...x, live: x.live + t } : x))),
         );
-        patch(id, { result: done, live: "" });
+        patch(id, { result: done as QueryResponse, live: "" });
       } else {
         patch(id, { result: await postQuery(reqInput) });
       }
     } catch (error) {
-      const msg = extractErrorMessage(error);
-      patch(id, { error: msg });
-      toast.err(msg);
+      patch(id, { error: extractErrorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -130,10 +122,26 @@ export function PlaygroundPage() {
           <Greeting onPick={(q) => void run(q)} disabled={busy} />
         ) : (
           <div className="space-y-6 pb-4">
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setMessages([])}
+                className="text-xs text-muted-foreground"
+              >
+                <i className="ti ti-trash text-xs" /> Clear conversation
+              </Button>
+            </div>
             {messages.map((turn) => (
               <div key={turn.id} className="space-y-4">
                 <UserBubble text={turn.question} />
-                <AssistantMessage turn={turn} onFeedback={sendFeedback} />
+                <AssistantMessage
+                  turn={turn}
+                  onFeedback={sendFeedback}
+                  onCopy={(text) => {
+                    void navigator.clipboard?.writeText(text).then(() => toast.ok("Copied!"));
+                  }}
+                />
               </div>
             ))}
             <div ref={bottomRef} />
@@ -149,7 +157,7 @@ export function PlaygroundPage() {
         slug={slug}
         onSlug={setSlug}
         streaming={streaming}
-        onStreaming={setStreaming}
+        onStreaming={handleSetStreaming}
         pluginSlugs={plugins.data?.map((p) => p.slug) ?? []}
       />
     </div>
@@ -200,9 +208,11 @@ function UserBubble({ text }: { text: string }) {
 function AssistantMessage({
   turn,
   onFeedback,
+  onCopy,
 }: {
   turn: Turn;
   onFeedback: (turn: Turn, rating: "helpful" | "not_helpful") => void;
+  onCopy: (text: string) => void;
 }) {
   const { result, live, error } = turn;
   return (
@@ -229,7 +239,7 @@ function AssistantMessage({
                 variant="ghost"
                 size="sm"
                 className="ml-auto"
-                onClick={() => copyText(result.answer)}
+                onClick={() => onCopy(result.answer)}
               >
                 <i className="ti ti-copy text-sm" /> Copy
               </Button>
@@ -237,48 +247,7 @@ function AssistantMessage({
 
             <Markdown>{result.answer}</Markdown>
 
-            {result.sources.length > 0 && (
-              <div className="mt-4">
-                <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Sources · {result.sources.filter((s) => s.cited).length} cited
-                </p>
-                <ol className="space-y-1.5">
-                  {result.sources.map((s, i) => (
-                    <li key={s.url}>
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={s.url}
-                        className="group flex items-center gap-2.5 rounded-md border bg-muted/30 px-3 py-2 text-sm transition hover:border-primary/40 hover:bg-muted"
-                      >
-                        <span
-                          className={
-                            s.cited
-                              ? "flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15 text-[11px] font-semibold text-success"
-                              : "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-muted-foreground"
-                          }
-                        >
-                          {i + 1}
-                        </span>
-                        <span className="truncate text-foreground group-hover:text-primary">
-                          {s.heading_path || hostOf(s.url)}
-                        </span>
-                        {s.cited && (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-success">
-                            <i className="ti ti-check text-xs" /> cited
-                          </span>
-                        )}
-                        <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
-                          {hostOf(s.url)}
-                        </span>
-                        <i className="ti ti-external-link text-sm shrink-0 text-muted-foreground" />
-                      </a>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
+            {result.sources.length > 0 && <SourceList sources={result.sources} />}
 
             {!result.declined && (
               <div className="mt-3 flex items-center gap-2 border-t pt-3 text-sm text-muted-foreground">
@@ -286,7 +255,7 @@ function AssistantMessage({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="Yes"
+                  aria-label="Helpful"
                   disabled={turn.feedbackSent}
                   onClick={() => onFeedback(turn, "helpful")}
                 >
@@ -295,7 +264,7 @@ function AssistantMessage({
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label="No"
+                  aria-label="Not helpful"
                   disabled={turn.feedbackSent}
                   onClick={() => onFeedback(turn, "not_helpful")}
                 >
@@ -316,6 +285,51 @@ function AssistantMessage({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function SourceList({ sources }: { sources: SourceRef[] }) {
+  return (
+    <div className="mt-4">
+      <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Sources · {sources.filter((s) => s.cited).length} cited
+      </p>
+      <ol className="space-y-1.5">
+        {sources.map((s, i) => (
+          <li key={s.url}>
+            <a
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={s.url}
+              className="group flex items-center gap-2.5 rounded-md border bg-muted/30 px-3 py-2 text-sm transition hover:border-primary/40 hover:bg-muted"
+            >
+              <span
+                className={
+                  s.cited
+                    ? "flex size-5 shrink-0 items-center justify-center rounded-full bg-success/15 text-[11px] font-semibold text-success"
+                    : "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-muted-foreground"
+                }
+              >
+                {i + 1}
+              </span>
+              <span className="truncate text-foreground group-hover:text-primary">
+                {s.heading_path || hostOf(s.url)}
+              </span>
+              {s.cited && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-success">
+                  <i className="ti ti-check text-xs" /> cited
+                </span>
+              )}
+              <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
+                {hostOf(s.url)}
+              </span>
+              <i className="ti ti-external-link text-sm shrink-0 text-muted-foreground" />
+            </a>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

@@ -124,12 +124,6 @@ export function AppShell() {
               className={cn("mb-2", collapsed ? "mx-1" : "mx-2")}
               style={{ borderColor: "var(--nav-border)" }}
             />
-            <NavItem
-              to="/profile"
-              label="Profile"
-              icon="ti-user-circle"
-              collapsed={collapsed}
-            />
             <button
               onClick={toggleCollapsed}
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -154,40 +148,61 @@ export function AppShell() {
 
         {/* User footer */}
         <div
-          className={cn(
-            "border-t flex items-center shrink-0",
-            collapsed ? "py-3 flex-col gap-2" : "px-3.5 py-3 gap-2.5",
-          )}
+          className="border-t shrink-0"
           style={{ borderColor: "var(--nav-border)" }}
         >
-          <button
-            onClick={() => void navigate("/profile")}
-            title={collapsed ? (user?.email ?? "User") : undefined}
-            className="relative shrink-0"
-          >
-            <Avatar name={user?.email ?? "?"} email={user?.email ?? ""} size={32} />
-            <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-success border-2 border-[#1a2744]" />
-          </button>
-          {!collapsed && (
-            <button
-              onClick={() => void navigate("/profile")}
-              className="flex-1 min-w-0 text-left"
-            >
-              <div className="text-[13px] font-semibold text-[#e0eaf8] truncate leading-snug">
-                {user?.email ?? ""}
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2 py-3">
+              <button
+                onClick={() => void navigate("/profile")}
+                title={user?.email ?? "Profile"}
+                className="relative"
+              >
+                <Avatar name={user?.email ?? "?"} email={user?.email ?? ""} size={32} />
+                <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-success border-2 border-[#1a2744]" />
+              </button>
+              <button
+                onClick={() => void logout()}
+                title="Sign out"
+                className="text-nav-text hover:text-nav-text-hover transition-colors"
+              >
+                <i className="ti ti-logout text-sm" />
+              </button>
+            </div>
+          ) : (
+            <div className="px-3 py-2.5">
+              <button
+                onClick={() => void navigate("/profile")}
+                className="group flex w-full items-center gap-3 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-white/5"
+              >
+                <div className="relative shrink-0">
+                  <Avatar name={user?.email ?? "?"} email={user?.email ?? ""} size={36} />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-success border-2 border-[#1a2744]" />
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="truncate text-[13px] font-semibold leading-tight text-[#e0eaf8]">
+                    {user?.email?.split("@")[0] ?? "User"}
+                  </div>
+                  <div className="truncate text-[11px] text-nav-text leading-tight mt-0.5">
+                    {user?.email ?? ""}
+                  </div>
+                </div>
+                <i className="ti ti-chevron-right text-xs text-nav-text opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              </button>
+              <div className="mt-1 flex items-center gap-1 px-1.5">
+                <span className="flex-1 truncate text-[10px] text-nav-text">
+                  {user?.roles.join(", ") ?? "member"}
+                </span>
+                <button
+                  onClick={() => void logout()}
+                  title="Sign out"
+                  className="text-nav-text hover:text-nav-text-hover transition-colors p-1 rounded"
+                >
+                  <i className="ti ti-logout text-sm" />
+                </button>
               </div>
-              <div className="text-[10px] text-nav-text truncate">
-                {user?.roles.join(", ") ?? "member"}
-              </div>
-            </button>
+            </div>
           )}
-          <button
-            onClick={() => void logout()}
-            title="Sign out"
-            className="text-nav-text hover:text-nav-text-hover transition-colors shrink-0"
-          >
-            <i className="ti ti-logout text-base" />
-          </button>
         </div>
       </aside>
 

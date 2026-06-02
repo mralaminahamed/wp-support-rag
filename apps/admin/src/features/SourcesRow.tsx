@@ -10,30 +10,30 @@ import { extractErrorMessage } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import type { SourceSummary } from "@/types/api";
 
+const RUN_STYLE: Record<string, { cls: string; icon: string; label: string }> = {
+  queued:    { cls: "bg-warning/10 text-warning border-warning/20",         icon: "ti-clock",         label: "queued"    },
+  running:   { cls: "bg-primary/10 text-primary border-primary/20",         icon: "ti-loader-2",      label: "running"   },
+  succeeded: { cls: "bg-success/10 text-success border-success/20",         icon: "ti-circle-check",  label: "succeeded" },
+  failed:    { cls: "bg-destructive/10 text-destructive border-destructive/20", icon: "ti-alert-circle", label: "failed" },
+};
+
 function RunStatusBadge({ status }: { status: string | null }) {
   if (!status) return <span className="text-xs text-muted-foreground">—</span>;
-  const variants: Record<string, string> = {
-    succeeded: "bg-success/10 text-success border-success/20",
-    running: "bg-primary/10 text-primary border-primary/20",
-    failed: "bg-destructive/10 text-destructive border-destructive/20",
-  };
-  const icons: Record<string, string> = {
-    succeeded: "ti-circle-check",
-    running: "ti-loader-2 animate-spin",
-    failed: "ti-alert-circle",
-  };
+  const cfg = RUN_STYLE[status] ?? { cls: "bg-muted text-muted-foreground border-border", icon: "ti-point", label: status };
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-        variants[status] ?? "bg-muted text-muted-foreground border-border",
+        cfg.cls,
       )}
     >
-      <i className={`ti ${icons[status] ?? "ti-point"} text-[10px]`} />
-      {status}
+      <i className={cn(`ti ${cfg.icon} text-[10px]`, status === "running" && "animate-spin")} />
+      {cfg.label}
     </span>
   );
 }
+
+const ACTIVE_STATUSES = new Set(["queued", "running"]);
 
 function SourceCard({ s }: { s: SourceSummary }) {
   return (
@@ -89,6 +89,12 @@ export function SourcesRow({ slug, colSpan }: { slug: string; colSpan: number })
   const sources = useQuery({
     queryKey: ["sources", slug],
     queryFn: () => listSources(slug),
+    // Poll every 3 s while any source has an active run
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      return data.some((s) => s.run_status && ACTIVE_STATUSES.has(s.run_status)) ? 3000 : false;
+    },
   });
 
   return (

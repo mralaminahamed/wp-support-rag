@@ -58,7 +58,7 @@ SOURCE_TYPES = (
     "wporg_changelog",
     "wporg_support",
 )
-RUN_STATUSES = ("running", "succeeded", "failed")
+RUN_STATUSES = ("queued", "running", "succeeded", "failed")
 FEEDBACK_RATINGS = ("helpful", "not_helpful")
 
 
@@ -322,7 +322,7 @@ class IngestionRun(Base):
     __tablename__ = "ingestion_runs"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('running','succeeded','failed')",
+            "status IN ('queued','running','succeeded','failed')",
             name="ingestion_runs_status_check",
         ),
     )

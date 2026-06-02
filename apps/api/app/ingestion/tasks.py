@@ -175,6 +175,7 @@ async def _process_document(
 
 async def ingest_source(
     source_id: uuid.UUID,
+    run_id: uuid.UUID | None = None,
     *,
     adapter: SourceAdapter | None = None,
     embedding_client: EmbeddingClient | None = None,
@@ -212,8 +213,16 @@ async def ingest_source(
         plugin = await session.get(Plugin, source.plugin_id)
         plugin_slug = plugin.slug if plugin else source.plugin_id.hex
         plugin_id = source.plugin_id
-        run = IngestionRun(source_id=source.id, status="running")
-        session.add(run)
+        if run_id is not None:
+            run = await session.get(IngestionRun, run_id)
+            if run is not None:
+                run.status = "running"
+            else:
+                run = IngestionRun(source_id=source.id, status="running")
+                session.add(run)
+        else:
+            run = IngestionRun(source_id=source.id, status="running")
+            session.add(run)
         await session.commit()
 
     new = updated = unchanged = chunks_created = 0
@@ -302,16 +311,21 @@ async def ingest_plugin(plugin_id: uuid.UUID) -> list[IngestSummary]:
 
 
 @celery_app.task(name="ingestion.ingest_source")
-def ingest_source_task(source_id: str) -> dict[str, object]:
+def ingest_source_task(source_id: str, run_id: str | None = None) -> dict[str, object]:
     """Celery entry point to ingest a single source (FR-IN-6).
 
     Args:
         source_id: String UUID of the source to ingest.
+        run_id: Optional UUID of a pre-created IngestionRun row to update (avoids
+            a duplicate row when the trigger endpoint already created one with
+            status ``"queued"``).
 
     Returns:
         dict[str, object]: The serialised :class:`IngestSummary`.
     """
-    summary = asyncio.run(ingest_source(uuid.UUID(source_id)))
+    summary = asyncio.run(
+        ingest_source(uuid.UUID(source_id), uuid.UUID(run_id) if run_id else None)
+    )
     return summary.model_dump(mode="json")
 
 

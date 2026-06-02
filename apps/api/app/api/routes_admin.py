@@ -499,11 +499,15 @@ async def trigger_ingest_all(
     for plugin in plugins:
         sources = await list_sources(session, plugin.id, enabled_only=True)
         for source in sources:
-            ingest_source_task.delay(str(source.id))
+            run = IngestionRun(source_id=source.id, status="queued")
+            session.add(run)
+            await session.flush()
+            ingest_source_task.delay(str(source.id), str(run.id))
         by_plugin.append(
             IngestTriggerResponse(plugin_slug=plugin.slug, enqueued_sources=len(sources))
         )
         total += len(sources)
+    await session.commit()
     return IngestAllResponse(plugins=len(plugins), enqueued_sources=total, by_plugin=by_plugin)
 
 
@@ -532,7 +536,11 @@ async def trigger_ingest(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
     sources = await list_sources(session, plugin.id, enabled_only=True)
     for source in sources:
-        ingest_source_task.delay(str(source.id))
+        run = IngestionRun(source_id=source.id, status="queued")
+        session.add(run)
+        await session.flush()
+        ingest_source_task.delay(str(source.id), str(run.id))
+    await session.commit()
     return IngestTriggerResponse(plugin_slug=plugin_slug, enqueued_sources=len(sources))
 
 

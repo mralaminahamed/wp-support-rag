@@ -161,6 +161,7 @@ class SourceSummary(BaseModel):
     """A plugin source for admin listing (FR-PM-2/4).
 
     Attributes:
+        source_id: The source UUID.
         source_type: The typed source kind.
         enabled: Whether the source is enabled.
         last_ingested_at: ISO timestamp of the last ingestion, if any.
@@ -171,6 +172,7 @@ class SourceSummary(BaseModel):
         run_finished_at: ISO timestamp when the most recent run finished, if any.
     """
 
+    source_id: str
     source_type: str
     enabled: bool
     last_ingested_at: str | None
@@ -179,6 +181,26 @@ class SourceSummary(BaseModel):
     run_docs: int | None = None
     run_error: str | None = None
     run_finished_at: str | None = None
+
+
+class PatchSourceRequest(BaseModel):
+    """Partial update for a source (enable/disable).
+
+    Attributes:
+        enabled: New enabled state.
+    """
+
+    enabled: bool
+
+
+class AddSourceRequest(BaseModel):
+    """Add a source to an existing plugin.
+
+    Attributes:
+        source_type: The source kind to add.
+    """
+
+    source_type: str
 
 
 class IngestTriggerResponse(BaseModel):

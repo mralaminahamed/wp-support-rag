@@ -31,6 +31,7 @@ export interface PluginSummary {
 }
 
 export interface SourceSummary {
+  source_id: string;
   source_type: string;
   enabled: boolean;
   last_ingested_at: string | null;

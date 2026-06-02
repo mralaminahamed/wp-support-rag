@@ -14,6 +14,8 @@ import type {
   SetupStatus,
   SourceSummary,
 } from "@/types/api";
+
+export type PatchSourcePayload = { enabled: boolean };
 import { apiClient } from "./client";
 
 export async function getHealth(): Promise<Health> {
@@ -28,6 +30,36 @@ export async function listPlugins(): Promise<PluginSummary[]> {
 
 export async function listSources(slug: string): Promise<SourceSummary[]> {
   const res = await apiClient.get<SourceSummary[]>(`/api/v1/admin/plugins/${slug}/sources`);
+  return res.data;
+}
+
+export async function addSource(slug: string, sourceType: string): Promise<SourceSummary> {
+  const res = await apiClient.post<SourceSummary>(`/api/v1/admin/plugins/${slug}/sources`, {
+    source_type: sourceType,
+  });
+  return res.data;
+}
+
+export async function patchSource(
+  slug: string,
+  sourceType: string,
+  payload: PatchSourcePayload,
+): Promise<SourceSummary> {
+  const res = await apiClient.patch<SourceSummary>(
+    `/api/v1/admin/plugins/${slug}/sources/${sourceType}`,
+    payload,
+  );
+  return res.data;
+}
+
+export async function deleteSource(slug: string, sourceType: string): Promise<void> {
+  await apiClient.delete(`/api/v1/admin/plugins/${slug}/sources/${sourceType}`);
+}
+
+export async function ingestSource(slug: string, sourceType: string): Promise<IngestTriggerResponse> {
+  const res = await apiClient.post<IngestTriggerResponse>(
+    `/api/v1/admin/ingest/${slug}/${sourceType}`,
+  );
   return res.data;
 }
 

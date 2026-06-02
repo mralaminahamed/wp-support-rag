@@ -27,12 +27,18 @@ export interface PluginSummary {
   wporg_slug: string | null;
   github_repo: string | null;
   source_count: number;
+  chunk_count: number;
 }
 
 export interface SourceSummary {
   source_type: string;
   enabled: boolean;
   last_ingested_at: string | null;
+  run_status: string | null;
+  run_chunks: number | null;
+  run_docs: number | null;
+  run_error: string | null;
+  run_finished_at: string | null;
 }
 
 export interface PluginRegistration {

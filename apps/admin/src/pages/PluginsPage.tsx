@@ -22,7 +22,7 @@ import { RegisterPluginModal } from "@/features/RegisterPluginModal";
 import { SourcesRow } from "@/features/SourcesRow";
 import { extractErrorMessage } from "@/lib/queryClient";
 
-type SortKey = "slug" | "name" | "source_count";
+type SortKey = "slug" | "name" | "source_count" | "chunk_count";
 
 export function PluginsPage() {
   const toast = useToast();
@@ -143,6 +143,13 @@ export function PluginsPage() {
                   asc={sortAsc}
                   onSort={toggleSort}
                 />
+                <SortHeader
+                  label="Chunks"
+                  col="chunk_count"
+                  sortKey={sortKey}
+                  asc={sortAsc}
+                  onSort={toggleSort}
+                />
                 <TableHead>GitHub</TableHead>
                 <TableHead>wp.org</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -169,6 +176,11 @@ export function PluginsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">{p.source_count}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={p.chunk_count > 0 ? "accent" : "secondary"}>
+                          {p.chunk_count.toLocaleString()}
+                        </Badge>
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {p.github_repo ? (
@@ -203,7 +215,7 @@ export function PluginsPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                    {open && <SourcesRow slug={p.slug} colSpan={8} />}
+                    {open && <SourcesRow slug={p.slug} colSpan={9} />}
                   </Fragment>
                 );
               })}

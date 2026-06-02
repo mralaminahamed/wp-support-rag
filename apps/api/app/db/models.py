@@ -647,3 +647,25 @@ class PasswordResetToken(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship()
+
+
+class SystemSetting(Base):
+    """Key-value system settings persisted in the database.
+
+    Attributes:
+        id: Surrogate primary key.
+        key: Unique setting key name.
+        value: Setting value as text.
+        updated_at: Row last-update timestamp.
+    """
+
+    __tablename__ = "system_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    key: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )

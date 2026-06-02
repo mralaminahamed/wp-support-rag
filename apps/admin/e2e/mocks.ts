@@ -147,6 +147,7 @@ export async function mockApi(page: Page): Promise<void> {
           degraded: false,
           latency_ms: 540,
           created_at: "2026-05-29T07:00:00Z",
+          thread_id: "t1",
         },
       ],
     }),

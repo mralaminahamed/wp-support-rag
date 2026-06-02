@@ -38,7 +38,7 @@ from app.api.schemas import (
 )
 from app.config import EmbeddingProvider, ProviderName, Settings
 from app.db.engine import get_session
-from app.db.models import Chunk, Feedback, IngestionRun, Plugin, Query, Source
+from app.db.models import Chunk, Feedback, IngestionRun, Plugin, Query, Source, ThreadMessage
 from app.ingestion.registry import (
     PluginSpec,
     SourceSpec,
@@ -313,9 +313,20 @@ async def recent_queries(
         list[RecentQuery]: Recent queries, newest first, with the plugin slug.
     """
     capped = max(1, min(limit, 100))
+    # Subquery: one thread_id per query (min UUID for determinism when multiple exist)
+    thread_sq = (
+        select(
+            ThreadMessage.query_id,
+            func.min(ThreadMessage.thread_id).label("thread_id"),
+        )
+        .where(ThreadMessage.query_id.isnot(None))
+        .group_by(ThreadMessage.query_id)
+        .subquery("tsq")
+    )
     stmt = (
-        select(Query, Plugin.slug)
+        select(Query, Plugin.slug, thread_sq.c.thread_id)
         .join(Plugin, Plugin.id == Query.plugin_id, isouter=True)
+        .outerjoin(thread_sq, thread_sq.c.query_id == Query.id)
         .order_by(Query.created_at.desc())
         .limit(capped)
     )
@@ -330,8 +341,9 @@ async def recent_queries(
             degraded=query.degraded,
             latency_ms=query.latency_ms,
             created_at=query.created_at.isoformat(),
+            thread_id=thread_id,
         )
-        for query, slug in rows
+        for query, slug, thread_id in rows
     ]
 
 

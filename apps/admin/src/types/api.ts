@@ -133,6 +133,7 @@ export interface RecentQuery {
   degraded: boolean;
   latency_ms: number | null;
   created_at: string;
+  thread_id: string | null;
 }
 
 export interface QueryResponse {

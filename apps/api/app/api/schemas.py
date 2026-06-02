@@ -304,6 +304,7 @@ class RecentQuery(BaseModel):
         degraded: Whether fail-open degraded mode was used.
         latency_ms: End-to-end latency in milliseconds, if recorded.
         created_at: ISO timestamp of when the query was logged.
+        thread_id: Conversation thread that contains this query, if any.
     """
 
     id: uuid.UUID
@@ -314,6 +315,7 @@ class RecentQuery(BaseModel):
     degraded: bool
     latency_ms: int | None
     created_at: str
+    thread_id: uuid.UUID | None = None
 
 
 class OllamaModelsResponse(BaseModel):

@@ -23,6 +23,7 @@ import {
   PluginStep,
   SetupWizardLayout,
 } from "@/pages/SetupWizardPage";
+import { ThreadsListPage } from "@/pages/ThreadsListPage";
 import { UsersPage } from "@/pages/UsersPage";
 
 function Root() {
@@ -67,7 +68,14 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: "plugins", element: <PluginsPage /> },
-          { path: "playground", element: <PlaygroundPage /> },
+          {
+            path: "playground",
+            children: [
+              { index: true, element: <PlaygroundPage /> },
+              { path: "threads", element: <ThreadsListPage /> },
+              { path: "threads/:threadId", element: <PlaygroundPage /> },
+            ],
+          },
           { path: "users", element: <UsersPage /> },
           {
             path: "profile",

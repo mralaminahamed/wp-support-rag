@@ -1,13 +1,12 @@
 // Playground: threaded chat-style grounded Q&A. Author: Al Amin Ahamed.
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   appendMessages,
   createThread,
-  deleteThread,
   getThreadMessages,
   listPlugins,
-  listThreads,
 } from "@/api/admin";
 import { postFeedback, postQuery, streamQuery } from "@/api/query";
 import { Logo } from "@/components/Logo";
@@ -25,8 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { extractErrorMessage } from "@/lib/queryClient";
-import { cn } from "@/lib/utils";
-import type { QueryResponse, SourceRef, ThreadMessage, ThreadSummary } from "@/types/api";
+import type { QueryResponse, SourceRef, ThreadMessage } from "@/types/api";
 
 function uuidv4(): string {
   const b = new Uint8Array(16);
@@ -52,16 +50,6 @@ function hostOf(url: string): string {
   } catch {
     return url;
   }
-}
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
 }
 
 interface Turn {
@@ -112,10 +100,12 @@ function messagestoTurns(msgs: ThreadMessage[]): Turn[] {
 export function PlaygroundPage() {
   const toast = useToast();
   const qc = useQueryClient();
-  const plugins = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
-  const threads = useQuery({ queryKey: ["threads"], queryFn: listThreads });
+  const navigate = useNavigate();
+  const { threadId: urlThreadId } = useParams<{ threadId?: string }>();
+  const currentThreadId = urlThreadId ?? null;
 
-  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  const plugins = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
+
   const [messages, setMessages] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [slug, setSlug] = useState("");
@@ -152,17 +142,6 @@ export function PlaygroundPage() {
     });
   }, [currentThreadId]);
 
-  const deleteThreadMutation = useMutation({
-    mutationFn: (id: string) => deleteThread(id),
-    onSuccess: (_, id) => {
-      void qc.invalidateQueries({ queryKey: ["threads"] });
-      if (currentThreadId === id) {
-        setCurrentThreadId(null);
-        setMessages([]);
-      }
-    },
-  });
-
   function patch(id: string, change: Partial<Turn>) {
     setMessages((m) => m.map((t) => (t.id === id ? { ...t, ...change } : t)));
   }
@@ -178,7 +157,7 @@ export function PlaygroundPage() {
     const t = await createThread(title, slug || null);
     void qc.invalidateQueries({ queryKey: ["threads"] });
     suppressNextReloadRef.current = true;
-    setCurrentThreadId(t.id);
+    void navigate(`/playground/threads/${t.id}`, { replace: true });
     return t.id;
   }
 
@@ -244,149 +223,62 @@ export function PlaygroundPage() {
   }
 
   function startNewChat() {
-    setCurrentThreadId(null);
     setMessages([]);
     setInput("");
+    void navigate("/playground");
   }
 
-  const threadList = threads.data ?? [];
-
   return (
-    <div className="flex h-[calc(100dvh-7rem)] overflow-hidden gap-0">
-      {/* Thread sidebar */}
-      <aside className="w-56 shrink-0 flex flex-col border-r bg-card overflow-hidden">
-        <div className="px-3 py-3 border-b shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start gap-2 text-xs"
-            onClick={startNewChat}
-          >
-            <i className="ti ti-plus text-sm" /> New chat
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto py-1">
-          {threads.isLoading ? (
-            <div className="flex justify-center py-4">
-              <Spinner />
-            </div>
-          ) : threadList.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-muted-foreground text-center">No threads yet</p>
-          ) : (
-            threadList.map((t) => (
-              <ThreadItem
-                key={t.id}
-                thread={t}
-                active={t.id === currentThreadId}
-                onSelect={() => setCurrentThreadId(t.id)}
-                onDelete={() => deleteThreadMutation.mutate(t.id)}
-              />
-            ))
-          )}
-        </div>
-      </aside>
+    <div className="flex h-[calc(100dvh-7rem)] flex-col overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 border-b px-4 py-2 shrink-0">
+        <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={startNewChat}>
+          <i className="ti ti-plus text-sm" /> New chat
+        </Button>
+        <Link
+          to="/playground/threads"
+          className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          <i className="ti ti-history text-sm" /> Threads
+        </Link>
+      </div>
 
       {/* Conversation area */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-4">
-          {messages.length === 0 ? (
-            <Greeting onPick={(q) => void run(q)} disabled={busy} />
-          ) : (
-            <div className="mx-auto max-w-3xl space-y-6 py-4">
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={startNewChat}
-                  className="text-xs text-muted-foreground"
-                >
-                  <i className="ti ti-plus text-xs" /> New chat
-                </Button>
+      <div className="flex-1 overflow-y-auto px-4">
+        {messages.length === 0 ? (
+          <Greeting onPick={(q) => void run(q)} disabled={busy} />
+        ) : (
+          <div className="mx-auto max-w-3xl space-y-6 py-4">
+            {messages.map((turn) => (
+              <div key={turn.id} className="space-y-4">
+                <UserBubble text={turn.question} />
+                <AssistantMessage
+                  turn={turn}
+                  onFeedback={sendFeedback}
+                  onCopy={(text) => {
+                    void navigator.clipboard?.writeText(text).then(() => toast.ok("Copied!"));
+                  }}
+                />
               </div>
-              {messages.map((turn) => (
-                <div key={turn.id} className="space-y-4">
-                  <UserBubble text={turn.question} />
-                  <AssistantMessage
-                    turn={turn}
-                    onFeedback={sendFeedback}
-                    onCopy={(text) => {
-                      void navigator.clipboard?.writeText(text).then(() => toast.ok("Copied!"));
-                    }}
-                  />
-                </div>
-              ))}
-              <div ref={bottomRef} />
-            </div>
-          )}
-        </div>
-
-        <div className="mx-auto w-full max-w-3xl px-4">
-          <Composer
-            value={input}
-            onChange={setInput}
-            onSend={() => void run()}
-            busy={busy}
-            slug={slug}
-            onSlug={setSlug}
-            streaming={streaming}
-            onStreaming={handleSetStreaming}
-            pluginSlugs={plugins.data?.map((p) => p.slug) ?? []}
-          />
-        </div>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+        )}
       </div>
-    </div>
-  );
-}
 
-function ThreadItem({
-  thread,
-  active,
-  onSelect,
-  onDelete,
-}: {
-  thread: ThreadSummary;
-  active: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-}) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  return (
-    <div
-      className={cn(
-        "group relative flex items-start gap-1 px-2 py-2 cursor-pointer text-left rounded-md mx-1 my-0.5 transition-colors",
-        active ? "bg-primary/10 text-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground",
-      )}
-      onClick={onSelect}
-    >
-      <div className="flex-1 min-w-0">
-        <p className="truncate text-[12px] font-medium leading-snug">{thread.title}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">{relativeTime(thread.updated_at)}</p>
+      <div className="mx-auto w-full max-w-3xl px-4">
+        <Composer
+          value={input}
+          onChange={setInput}
+          onSend={() => void run()}
+          busy={busy}
+          slug={slug}
+          onSlug={setSlug}
+          streaming={streaming}
+          onStreaming={handleSetStreaming}
+          pluginSlugs={plugins.data?.map((p) => p.slug) ?? []}
+        />
       </div>
-      {confirmDelete ? (
-        <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
-            className="text-[10px] text-destructive hover:underline"
-            onClick={() => { onDelete(); setConfirmDelete(false); }}
-          >
-            Del
-          </button>
-          <button
-            className="text-[10px] text-muted-foreground hover:underline"
-            onClick={() => setConfirmDelete(false)}
-          >
-            ×
-          </button>
-        </div>
-      ) : (
-        <button
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted-foreground hover:text-destructive"
-          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-          aria-label="Delete thread"
-        >
-          <i className="ti ti-trash text-xs" />
-        </button>
-      )}
     </div>
   );
 }

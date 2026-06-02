@@ -302,24 +302,41 @@ export function DashboardPage() {
             </p>
           ) : (
             <ul className="divide-y">
-              {recent.data!.map((q) => (
-                <li key={q.id} className="flex items-center gap-3 py-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate">{q.query_text}</span>
-                  {q.plugin_slug && (
-                    <Badge variant="secondary" className="font-mono text-[11px]">
-                      {q.plugin_slug}
-                    </Badge>
-                  )}
-                  {q.degraded && <Badge variant="warning">degraded</Badge>}
-                  {q.cached && <Badge variant="accent">cached</Badge>}
-                  {q.latency_ms != null && (
-                    <span className="shrink-0 text-xs text-muted-foreground">{q.latency_ms} ms</span>
-                  )}
-                  <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
-                    {relativeTime(q.created_at)}
-                  </span>
-                </li>
-              ))}
+              {recent.data!.map((q) => {
+                const inner = (
+                  <>
+                    <span className="min-w-0 flex-1 truncate">{q.query_text}</span>
+                    {q.plugin_slug && (
+                      <Badge variant="secondary" className="font-mono text-[11px]">
+                        {q.plugin_slug}
+                      </Badge>
+                    )}
+                    {q.degraded && <Badge variant="warning">degraded</Badge>}
+                    {q.cached && <Badge variant="accent">cached</Badge>}
+                    {q.latency_ms != null && (
+                      <span className="shrink-0 text-xs text-muted-foreground">{q.latency_ms} ms</span>
+                    )}
+                    <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">
+                      {relativeTime(q.created_at)}
+                    </span>
+                  </>
+                );
+                return q.thread_id ? (
+                  <li key={q.id}>
+                    <Link
+                      to={`/playground/threads/${q.thread_id}`}
+                      className="flex items-center gap-3 py-2 text-sm rounded hover:bg-muted/50 transition-colors px-1 -mx-1 cursor-pointer"
+                    >
+                      {inner}
+                      <i className="ti ti-arrow-right text-xs text-muted-foreground shrink-0" />
+                    </Link>
+                  </li>
+                ) : (
+                  <li key={q.id} className="flex items-center gap-3 py-2 text-sm">
+                    {inner}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

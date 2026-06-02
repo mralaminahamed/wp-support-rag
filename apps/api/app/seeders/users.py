@@ -1,14 +1,11 @@
 # Author: Al Amin Ahamed
-"""Seed demo users — one per system role + one custom editor + one inactive.
+"""Seed dev users — superadmin and admin only.
 
 Idempotent: skips users whose email already exists.
 
 Default credentials (DO NOT USE IN PRODUCTION):
     superadmin@dev.local  / DevPass123!  — super_admin (all permissions)
-    admin@dev.local       / DevPass123!  — admin       (no users:*)
-    editor@dev.local      / DevPass123!  — editor      (plugins + ingest only)
-    viewer@dev.local      / DevPass123!  — viewer      (plugins:read + metrics:read)
-    inactive@dev.local    / DevPass123!  — viewer      (is_active=False)
+    admin@dev.local       / DevPass123!  — admin       (no users:write)
 """
 from __future__ import annotations
 
@@ -22,9 +19,6 @@ from app.seeders.base import Seeder
 _FIXTURES: list[dict] = [
     {"email": "superadmin@dev.local", "password": "DevPass123!", "role": "super_admin", "active": True},
     {"email": "admin@dev.local",      "password": "DevPass123!", "role": "admin",       "active": True},
-    {"email": "editor@dev.local",     "password": "DevPass123!", "role": "editor",      "active": True},
-    {"email": "viewer@dev.local",     "password": "DevPass123!", "role": "viewer",      "active": True},
-    {"email": "inactive@dev.local",   "password": "DevPass123!", "role": "viewer",      "active": False},
 ]
 
 _SEEDED_EMAILS = {f["email"] for f in _FIXTURES}

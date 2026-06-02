@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, Text, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_redis_dep, get_settings_dep, require_permission
@@ -318,7 +318,7 @@ async def recent_queries(
     thread_sq = (
         select(
             ThreadMessage.query_id,
-            func.min(ThreadMessage.thread_id).label("thread_id"),
+            func.min(cast(ThreadMessage.thread_id, Text)).label("thread_id"),
         )
         .where(ThreadMessage.query_id.isnot(None))
         .group_by(ThreadMessage.query_id)

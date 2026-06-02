@@ -239,15 +239,24 @@ async def get_embedding_override(redis: Redis) -> dict[str, str]:
     return data if isinstance(data, dict) else {}
 
 
-async def set_embedding_override(redis: Redis, provider: EmbeddingProvider, model: str) -> None:
-    """Persist an embedding provider/model override.
+async def set_embedding_override(
+    redis: Redis, provider: EmbeddingProvider, model: str, dimensions: int
+) -> None:
+    """Persist an embedding provider/model override including the model's vector width.
+
+    Storing ``dimensions`` alongside the provider/model allows ``resolve_embedding``
+    to validate the override without needing to call the provider at query time.
 
     Args:
         redis: The Redis client.
         provider: The embedding provider to activate.
         model: The embedding model id to use.
+        dimensions: The vector width the model produces.
     """
-    await redis.set(_EMBED_OVERRIDE_KEY, json.dumps({"provider": provider, "model": model}))
+    await redis.set(
+        _EMBED_OVERRIDE_KEY,
+        json.dumps({"provider": provider, "model": model, "dimensions": dimensions}),
+    )
 
 
 async def clear_embedding_override(redis: Redis) -> None:
@@ -277,11 +286,17 @@ async def resolve_embedding(redis: Redis, settings: Settings) -> EffectiveEmbedd
     column_dims = settings.embedding_dimensions
     override = await get_embedding_override(redis)
     provider = override.get("provider")
-    if provider in EMBEDDING_PROVIDERS and embed_dims_for(settings, provider) == column_dims:
-        model = override.get("model") or embed_model_for(settings, provider)
-        return EffectiveEmbeddingConfig(
-            provider=provider, model=model, dimensions=column_dims, source="override"
-        )
+    if provider in EMBEDDING_PROVIDERS:
+        # Use the stored dimensions when present (set by set_embedding_override).
+        # Fall back to the env-configured default dims for the provider only when
+        # the override was written by an older version that didn't store them.
+        stored_dims = override.get("dimensions")
+        override_dims = int(stored_dims) if stored_dims is not None else embed_dims_for(settings, provider)
+        if override_dims == column_dims:
+            model = override.get("model") or embed_model_for(settings, provider)
+            return EffectiveEmbeddingConfig(
+                provider=provider, model=model, dimensions=column_dims, source="override"
+            )
     return EffectiveEmbeddingConfig(
         provider=settings.embedding_provider,
         model=settings.active_embed_model,

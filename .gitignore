@@ -26,9 +26,9 @@ htmlcov/
 .idea/
 .vscode/
 
-# Project docs / agent context (kept out of version control)
-docs/
+# Agent context (kept out of version control)
 CLAUDE.md
+*/**/CLAUDE.md
 .claude/
 .remember/
 .playwright-mcp/
@@ -46,3 +46,8 @@ apps/**/dist/
 apps/**/test-results/
 apps/**/playwright-report/
 apps/**/.playwright/
+
+# Project docs — expose architecture docs, ignore agent plans/specs
+/docs/*
+!/docs/01-SRS.md
+!/docs/02-Architecture.md

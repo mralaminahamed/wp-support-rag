@@ -132,7 +132,7 @@ function LeftPanel() {
             <div className="text-[13px] font-bold text-[#e0eaf8] tracking-tight leading-none">
               Support RAG
             </div>
-            <div className="text-[9px] font-bold text-primary tracking-[1.5px] uppercase mt-1">
+            <div className="text-[9px] font-bold text-white/50 tracking-[1.5px] uppercase mt-1">
               Setup Wizard
             </div>
           </div>
@@ -141,7 +141,7 @@ function LeftPanel() {
         <h1 className="text-2xl font-bold text-white leading-tight mb-2">
           Let's get you set up
         </h1>
-        <p className="text-sm text-[#4b6284] leading-relaxed">
+        <p className="text-sm text-white/55 leading-relaxed">
           Configure network access, AI providers, and add your first plugin.
         </p>
 
@@ -178,10 +178,10 @@ function LeftPanel() {
                   className={cn(
                     "text-sm leading-relaxed pt-0.5",
                     active
-                      ? "text-[#c8d8ed]"
+                      ? "text-white"
                       : done
-                        ? "text-[#4b6284]"
-                        : "text-[#2e4060]",
+                        ? "text-white/60"
+                        : "text-white/30",
                   )}
                 >
                   {text}
@@ -192,7 +192,7 @@ function LeftPanel() {
         </div>
       </div>
 
-      <p className="relative text-[11px] text-[#2e4060]">
+      <p className="relative text-[11px] text-white/35">
         You can update provider configuration via environment variables.
       </p>
     </div>

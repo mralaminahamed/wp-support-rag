@@ -227,6 +227,20 @@ export async function mockApi(page: Page): Promise<void> {
     route.fulfill({ json: { plugins: 2, enqueued_sources: 10, by_plugin: [] } }),
   );
 
+  await page.route("**/api/v1/admin/plugins/*", (route) => {
+    const method = route.request().method();
+    if (method === "PATCH") {
+      const slug = route.request().url().split("/plugins/")[1];
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const base = PLUGINS.find((p) => p.slug === slug) ?? PLUGINS[0];
+      route.fulfill({ json: { ...base, ...body, source_count: base.source_count, chunk_count: base.chunk_count } });
+    } else if (method === "DELETE") {
+      route.fulfill({ status: 204, body: "" });
+    } else {
+      route.fulfill({ status: 404, json: { detail: "not found" } });
+    }
+  });
+
   await page.route("**/api/v1/admin/plugins", (route) => {
     if (route.request().method() === "POST") {
       route.fulfill({ json: { slug: "new-plugin", id: "abc" } });

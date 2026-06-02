@@ -183,6 +183,22 @@ class SourceSummary(BaseModel):
     run_finished_at: str | None = None
 
 
+class PluginUpdate(BaseModel):
+    """Partial update for a plugin (name, slugs, status).
+
+    Attributes:
+        name: New display name.
+        wporg_slug: WordPress.org slug override (null clears it).
+        github_repo: GitHub repo override (null clears it).
+        status: Lifecycle status — ``active`` or ``paused``.
+    """
+
+    name: str | None = Field(default=None, max_length=400)
+    wporg_slug: str | None = None
+    github_repo: str | None = None
+    status: Literal["active", "paused"] | None = None
+
+
 class PatchSourceRequest(BaseModel):
     """Partial update for a source (enable/disable).
 

@@ -33,6 +33,7 @@ from app.api.schemas import (
     PatchSourceRequest,
     PluginRegistration,
     PluginSummary,
+    PluginUpdate,
     RecentQuery,
     SourceSummary,
 )
@@ -401,6 +402,61 @@ async def register_plugin(
     plugin = await load_plugin_spec(session, spec)
     await session.commit()
     return {"slug": plugin.slug, "id": str(plugin.id)}
+
+
+@router.patch("/plugins/{plugin_slug}", response_model=PluginSummary)
+async def update_plugin(
+    plugin_slug: str,
+    payload: PluginUpdate,
+    _: object = Depends(require_permission("plugins:write")),
+    session: AsyncSession = Depends(get_session),
+) -> PluginSummary:
+    """Partial-update a plugin's metadata."""
+    result = await session.execute(select(Plugin).where(Plugin.slug == plugin_slug))
+    plugin = result.scalar_one_or_none()
+    if plugin is None:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    if payload.name is not None:
+        plugin.name = payload.name
+    if "wporg_slug" in payload.model_fields_set:
+        plugin.wporg_slug = payload.wporg_slug
+    if "github_repo" in payload.model_fields_set:
+        plugin.github_repo = payload.github_repo
+    if payload.status is not None:
+        plugin.status = payload.status
+    await session.commit()
+    await session.refresh(plugin)
+
+    chunk_row = await session.execute(
+        select(func.count()).where(Chunk.plugin_id == plugin.id)
+    )
+    source_row = await session.execute(
+        select(func.count()).where(Source.plugin_id == plugin.id)
+    )
+    return PluginSummary(
+        slug=plugin.slug,
+        name=plugin.name,
+        status=plugin.status,
+        wporg_slug=plugin.wporg_slug,
+        github_repo=plugin.github_repo,
+        source_count=source_row.scalar_one(),
+        chunk_count=chunk_row.scalar_one(),
+    )
+
+
+@router.delete("/plugins/{plugin_slug}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_plugin(
+    plugin_slug: str,
+    _: object = Depends(require_permission("plugins:write")),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Delete a plugin and all its sources, documents, and chunks."""
+    result = await session.execute(select(Plugin).where(Plugin.slug == plugin_slug))
+    plugin = result.scalar_one_or_none()
+    if plugin is None:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    await session.delete(plugin)
+    await session.commit()
 
 
 @router.get("/plugins", response_model=list[PluginSummary])

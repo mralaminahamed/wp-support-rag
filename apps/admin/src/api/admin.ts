@@ -76,6 +76,18 @@ export async function registerPlugin(
   return res.data;
 }
 
+export async function updatePlugin(
+  slug: string,
+  payload: { name?: string; wporg_slug?: string | null; github_repo?: string | null; status?: "active" | "paused" },
+): Promise<PluginSummary> {
+  const res = await apiClient.patch<PluginSummary>(`/api/v1/admin/plugins/${slug}`, payload);
+  return res.data;
+}
+
+export async function deletePlugin(slug: string): Promise<void> {
+  await apiClient.delete(`/api/v1/admin/plugins/${slug}`);
+}
+
 export async function ingestPlugin(slug: string): Promise<IngestTriggerResponse> {
   const res = await apiClient.post<IngestTriggerResponse>(`/api/v1/admin/ingest/${slug}`);
   return res.data;

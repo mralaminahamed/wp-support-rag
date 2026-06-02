@@ -1,7 +1,7 @@
 // Plugins: search, sort, expand sources, ingest per plugin / all. Author: Al Amin Ahamed.
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useMemo, useState } from "react";
-import { ingestAll, ingestPlugin, listPlugins } from "@/api/admin";
+import { deletePlugin, ingestAll, ingestPlugin, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,17 +18,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EditPluginModal } from "@/features/EditPluginModal";
 import { RegisterPluginModal } from "@/features/RegisterPluginModal";
 import { SourcesRow } from "@/features/SourcesRow";
 import { extractErrorMessage } from "@/lib/queryClient";
+import type { PluginSummary } from "@/types/api";
 
 type SortKey = "slug" | "name" | "source_count" | "chunk_count";
 
 export function PluginsPage() {
   const toast = useToast();
+  const qc = useQueryClient();
   const plugins = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
   const [expanded, setExpanded] = useState<string | null>(null);
   const [registering, setRegistering] = useState(false);
+  const [editing, setEditing] = useState<PluginSummary | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("slug");
   const [sortAsc, setSortAsc] = useState(true);
@@ -42,6 +47,16 @@ export function PluginsPage() {
     mutationFn: ingestAll,
     onSuccess: (data) =>
       toast.ok(`Enqueued ${data.enqueued_sources} sources across ${data.plugins} plugins`),
+    onError: (error) => toast.err(extractErrorMessage(error)),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deletePlugin,
+    onSuccess: (_, slug) => {
+      toast.ok(`Deleted ${slug}`);
+      void qc.invalidateQueries({ queryKey: ["plugins"] });
+      setConfirmDelete(null);
+      if (expanded === slug) setExpanded(null);
+    },
     onError: (error) => toast.err(extractErrorMessage(error)),
   });
 
@@ -205,14 +220,52 @@ export function PluginsPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => ingestOne.mutate(p.slug)}
-                          disabled={ingestOne.isPending}
-                        >
-                          Ingest
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          {confirmDelete === p.slug ? (
+                            <>
+                              <button
+                                className="text-xs text-destructive hover:underline px-1"
+                                onClick={() => deleteMutation.mutate(p.slug)}
+                                disabled={deleteMutation.isPending}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                className="text-xs text-muted-foreground hover:underline px-1"
+                                onClick={() => setConfirmDelete(null)}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                                onClick={() => setEditing(p)}
+                              >
+                                <i className="ti ti-pencil text-sm" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-destructive hover:text-destructive"
+                                onClick={() => setConfirmDelete(p.slug)}
+                              >
+                                <i className="ti ti-trash text-sm" />
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => ingestOne.mutate(p.slug)}
+                                disabled={ingestOne.isPending}
+                              >
+                                Ingest
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                     {open && <SourcesRow slug={p.slug} colSpan={9} />}
@@ -225,6 +278,7 @@ export function PluginsPage() {
       </Card>
 
       {registering && <RegisterPluginModal onClose={() => setRegistering(false)} />}
+      {editing && <EditPluginModal plugin={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }

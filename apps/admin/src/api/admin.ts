@@ -11,6 +11,7 @@ import type {
   PluginRegistration,
   PluginSummary,
   RecentQuery,
+  SetupStatus,
   SourceSummary,
 } from "@/types/api";
 import { apiClient } from "./client";
@@ -89,5 +90,15 @@ export async function getOllamaModels(): Promise<OllamaModels> {
 
 export async function getRecentQueries(limit = 8): Promise<RecentQuery[]> {
   const res = await apiClient.get<RecentQuery[]>("/api/v1/admin/queries", { params: { limit } });
+  return res.data;
+}
+
+export async function getSetupStatus(): Promise<SetupStatus> {
+  const res = await apiClient.get<SetupStatus>("/api/v1/admin/setup/status");
+  return res.data;
+}
+
+export async function completeSetup(): Promise<SetupStatus> {
+  const res = await apiClient.post<SetupStatus>("/api/v1/admin/setup/complete");
   return res.data;
 }

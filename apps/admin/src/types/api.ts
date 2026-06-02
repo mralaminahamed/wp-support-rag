@@ -228,3 +228,7 @@ export interface PatchRoleRequest {
   permissions?: string[];
 }
 
+export interface SetupStatus {
+  complete: boolean;
+}
+

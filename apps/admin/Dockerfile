@@ -7,7 +7,7 @@ RUN corepack enable && corepack prepare pnpm@10.33.3 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 # Standalone build context: declare a single-package workspace.
-RUN printf 'packages:\n  - "."\nonlyBuiltDependencies:\n  - esbuild\n' > pnpm-workspace.yaml
+RUN printf 'packages:\n  - "."\nonlyBuiltDependencies:\n  - esbuild\nallowBuilds:\n  msw: true\n  ttf2woff2: true\n' > pnpm-workspace.yaml
 ENV CI=true
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --no-frozen-lockfile

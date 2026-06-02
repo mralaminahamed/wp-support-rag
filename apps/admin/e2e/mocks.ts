@@ -286,4 +286,27 @@ export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/v1/feedback", (route) =>
     route.fulfill({ json: { status: "recorded" } }),
   );
+
+  // Conversation threads — register broad → specific (LIFO: last wins)
+  await page.route("**/api/v1/threads", (route) => {
+    if (route.request().method() === "POST") {
+      route.fulfill({ status: 201, json: { id: "t1", title: "Test thread", plugin_slug: null, created_at: "2026-06-02T00:00:00Z", updated_at: "2026-06-02T00:00:00Z" } });
+    } else {
+      route.fulfill({ json: [] });
+    }
+  });
+  await page.route("**/api/v1/threads/*", (route) => {
+    if (route.request().method() === "DELETE") {
+      route.fulfill({ status: 204, body: "" });
+    } else {
+      route.fulfill({ json: { id: "t1", title: "Test thread", plugin_slug: null, created_at: "2026-06-02T00:00:00Z", updated_at: "2026-06-02T00:00:00Z" } });
+    }
+  });
+  await page.route("**/api/v1/threads/*/messages", (route) => {
+    if (route.request().method() === "POST") {
+      route.fulfill({ status: 201, json: [] });
+    } else {
+      route.fulfill({ json: [] });
+    }
+  });
 }

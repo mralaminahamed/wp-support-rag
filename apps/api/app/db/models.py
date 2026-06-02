@@ -669,3 +669,80 @@ class SystemSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()"), nullable=False
     )
+
+
+# ---------------------------------------------------------------------------
+# Playground conversation threads
+# ---------------------------------------------------------------------------
+
+
+class ConversationThread(Base):
+    """A named playground conversation owned by a user.
+
+    Attributes:
+        id: Surrogate primary key.
+        user_id: Owning user; cascade-deleted with the user.
+        title: Short title derived from the first question.
+        plugin_slug: Optional plugin filter active for this thread.
+        created_at: Row creation timestamp.
+        updated_at: Bumped on every new message (for recency sort).
+        messages: Ordered messages in this thread.
+    """
+
+    __tablename__ = "conversation_threads"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    plugin_slug: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+    messages: Mapped[list["ThreadMessage"]] = relationship(
+        back_populates="thread",
+        cascade="all, delete-orphan",
+        order_by="ThreadMessage.created_at",
+    )
+
+
+class ThreadMessage(Base):
+    """A single user or assistant turn within a conversation thread.
+
+    Attributes:
+        id: Surrogate primary key.
+        thread_id: Owning thread; cascade-deleted with the thread.
+        role: ``"user"`` or ``"assistant"``.
+        content: Message text (question or answer).
+        query_id: Linked query record for assistant messages (nullable).
+        meta: Full ``QueryResponse`` JSON for assistant messages (provider,
+            model, latency, sources, etc.).
+        created_at: Row creation timestamp.
+        thread: The owning thread.
+    """
+
+    __tablename__ = "thread_messages"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('user','assistant')",
+            name="thread_messages_role_check",
+        ),
+        Index("thread_messages_thread_id", "thread_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    thread_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("conversation_threads.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    query_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("queries.id", ondelete="SET NULL"), nullable=True
+    )
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = _created_at()
+
+    thread: Mapped[ConversationThread] = relationship(back_populates="messages")

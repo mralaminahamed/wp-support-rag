@@ -577,3 +577,84 @@ class SetupStatusResponse(BaseModel):
     """
 
     complete: bool
+
+
+# ---------------------------------------------------------------------------
+# Conversation thread schemas
+# ---------------------------------------------------------------------------
+
+
+class ThreadSummary(BaseModel):
+    """A conversation thread for sidebar listing.
+
+    Attributes:
+        id: Thread UUID.
+        title: Short title (first question, truncated).
+        plugin_slug: Plugin filter active for this thread, if any.
+        created_at: ISO creation timestamp.
+        updated_at: ISO last-activity timestamp.
+    """
+
+    id: uuid.UUID
+    title: str
+    plugin_slug: str | None
+    created_at: str
+    updated_at: str
+
+
+class ThreadMessageItem(BaseModel):
+    """A single message within a thread.
+
+    Attributes:
+        id: Message UUID.
+        role: ``"user"`` or ``"assistant"``.
+        content: Message text.
+        query_id: Linked query UUID for assistant messages, if any.
+        meta: Full QueryResponse payload for assistant messages, if stored.
+        created_at: ISO creation timestamp.
+    """
+
+    id: uuid.UUID
+    role: str
+    content: str
+    query_id: uuid.UUID | None
+    meta: dict | None
+    created_at: str
+
+
+class CreateThreadRequest(BaseModel):
+    """Create a new conversation thread.
+
+    Attributes:
+        title: Short title (caller should truncate to ~80 chars).
+        plugin_slug: Optional plugin filter active for this thread.
+    """
+
+    title: str = Field(min_length=1, max_length=200)
+    plugin_slug: str | None = Field(default=None, max_length=200)
+
+
+class AppendMessageItem(BaseModel):
+    """One message to append in a batch.
+
+    Attributes:
+        role: ``"user"`` or ``"assistant"``.
+        content: Message text.
+        query_id: Linked query UUID for assistant messages.
+        meta: Full QueryResponse JSON for assistant messages.
+    """
+
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(min_length=0, max_length=100_000)
+    query_id: uuid.UUID | None = None
+    meta: dict | None = None
+
+
+class AppendMessagesRequest(BaseModel):
+    """Batch-append messages to a thread (one user + one assistant per turn).
+
+    Attributes:
+        messages: Ordered list of messages to append.
+    """
+
+    messages: list[AppendMessageItem] = Field(min_length=1, max_length=10)

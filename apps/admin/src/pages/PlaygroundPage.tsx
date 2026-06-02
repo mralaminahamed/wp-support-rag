@@ -1,8 +1,14 @@
-// Playground: chat-style grounded Q&A. Each turn is an independent RAG query
-// (no conversation memory is sent to the model). Author: Al Amin Ahamed.
-import { useQuery } from "@tanstack/react-query";
+// Playground: threaded chat-style grounded Q&A. Author: Al Amin Ahamed.
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { listPlugins } from "@/api/admin";
+import {
+  appendMessages,
+  createThread,
+  deleteThread,
+  getThreadMessages,
+  listPlugins,
+  listThreads,
+} from "@/api/admin";
 import { postFeedback, postQuery, streamQuery } from "@/api/query";
 import { Logo } from "@/components/Logo";
 import { useToast } from "@/components/ToastProvider";
@@ -19,7 +25,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { extractErrorMessage } from "@/lib/queryClient";
-import type { QueryResponse, SourceRef } from "@/types/api";
+import { cn } from "@/lib/utils";
+import type { QueryResponse, SourceRef, ThreadMessage, ThreadSummary } from "@/types/api";
 
 function uuidv4(): string {
   const b = new Uint8Array(16);
@@ -47,6 +54,16 @@ function hostOf(url: string): string {
   }
 }
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 interface Turn {
   id: string;
   question: string;
@@ -56,10 +73,49 @@ interface Turn {
   feedbackSent: boolean;
 }
 
+function messagestoTurns(msgs: ThreadMessage[]): Turn[] {
+  const turns: Turn[] = [];
+  for (let i = 0; i < msgs.length; i += 2) {
+    const user = msgs[i];
+    const asst = msgs[i + 1];
+    if (!user || user.role !== "user") break;
+    const result: QueryResponse | null =
+      asst?.role === "assistant" && asst.meta
+        ? (asst.meta as unknown as QueryResponse)
+        : asst?.role === "assistant"
+          ? {
+              query_id: asst.query_id ?? user.id,
+              answer: asst.content,
+              citations: [],
+              sources: [],
+              cached: false,
+              degraded: false,
+              declined: false,
+              plugin_slug: null,
+              latency_ms: 0,
+              provider: "",
+              model: "",
+            }
+          : null;
+    turns.push({
+      id: user.id,
+      question: user.content,
+      live: "",
+      result,
+      error: null,
+      feedbackSent: false,
+    });
+  }
+  return turns;
+}
+
 export function PlaygroundPage() {
   const toast = useToast();
+  const qc = useQueryClient();
   const plugins = useQuery({ queryKey: ["plugins"], queryFn: listPlugins });
+  const threads = useQuery({ queryKey: ["threads"], queryFn: listThreads });
 
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [slug, setSlug] = useState("");
@@ -69,13 +125,43 @@ export function PlaygroundPage() {
   const [busy, setBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
+  // Prevents the thread-load effect from wiping messages when a thread is
+  // auto-created during an active run() call.
+  const suppressNextReloadRef = useRef(false);
 
-  // Smooth scroll only when a new message is added; instant during streaming updates.
+  // Smooth scroll on new message; instant during streaming.
   useEffect(() => {
     const isNew = messages.length > prevLengthRef.current;
     prevLengthRef.current = messages.length;
     bottomRef.current?.scrollIntoView({ behavior: isNew ? "smooth" : "auto", block: "end" });
   }, [messages]);
+
+  // Load messages when the user selects a thread from the sidebar.
+  // Suppressed when a thread is auto-created mid-run to avoid wiping live messages.
+  useEffect(() => {
+    if (!currentThreadId) {
+      setMessages([]);
+      return;
+    }
+    if (suppressNextReloadRef.current) {
+      suppressNextReloadRef.current = false;
+      return;
+    }
+    void getThreadMessages(currentThreadId).then((msgs) => {
+      setMessages(messagestoTurns(msgs));
+    });
+  }, [currentThreadId]);
+
+  const deleteThreadMutation = useMutation({
+    mutationFn: (id: string) => deleteThread(id),
+    onSuccess: (_, id) => {
+      void qc.invalidateQueries({ queryKey: ["threads"] });
+      if (currentThreadId === id) {
+        setCurrentThreadId(null);
+        setMessages([]);
+      }
+    },
+  });
 
   function patch(id: string, change: Partial<Turn>) {
     setMessages((m) => m.map((t) => (t.id === id ? { ...t, ...change } : t)));
@@ -84,6 +170,16 @@ export function PlaygroundPage() {
   function handleSetStreaming(v: boolean) {
     localStorage.setItem("playground-streaming", String(v));
     setStreaming(v);
+  }
+
+  async function ensureThread(question: string): Promise<string> {
+    if (currentThreadId) return currentThreadId;
+    const title = question.slice(0, 80);
+    const t = await createThread(title, slug || null);
+    void qc.invalidateQueries({ queryKey: ["threads"] });
+    suppressNextReloadRef.current = true;
+    setCurrentThreadId(t.id);
+    return t.id;
   }
 
   async function run(override?: string) {
@@ -97,17 +193,40 @@ export function PlaygroundPage() {
     ]);
     setBusy(true);
     const reqInput = { question: q, plugin_slug: slug || null };
+    let threadId: string | null = null;
     try {
+      threadId = await ensureThread(q);
+      let finalResult: QueryResponse;
       if (streaming) {
         const done = await streamQuery(reqInput, (t) =>
           setMessages((m) => m.map((x) => (x.id === id ? { ...x, live: x.live + t } : x))),
         );
-        patch(id, { result: done as QueryResponse, live: "" });
+        finalResult = done as QueryResponse;
+        patch(id, { result: finalResult, live: "" });
       } else {
-        patch(id, { result: await postQuery(reqInput) });
+        finalResult = await postQuery(reqInput);
+        patch(id, { result: finalResult });
       }
+      // Persist both messages to the thread.
+      await appendMessages(threadId, [
+        { role: "user", content: q },
+        {
+          role: "assistant",
+          content: finalResult.answer,
+          query_id: finalResult.query_id,
+          meta: finalResult as unknown as Record<string, unknown>,
+        },
+      ]);
+      void qc.invalidateQueries({ queryKey: ["threads"] });
     } catch (error) {
       patch(id, { error: extractErrorMessage(error) });
+      // Still persist user turn with error marker if we have a thread.
+      if (threadId) {
+        await appendMessages(threadId, [
+          { role: "user", content: q },
+          { role: "assistant", content: `[Error] ${extractErrorMessage(error)}` },
+        ]).catch(() => undefined);
+      }
     } finally {
       setBusy(false);
     }
@@ -124,51 +243,150 @@ export function PlaygroundPage() {
     }
   }
 
-  return (
-    <div className="mx-auto flex h-[calc(100dvh-7rem)] max-w-3xl flex-col">
-      <div className="flex-1 overflow-y-auto">
-        {messages.length === 0 ? (
-          <Greeting onPick={(q) => void run(q)} disabled={busy} />
-        ) : (
-          <div className="space-y-6 pb-4">
-            <div className="flex justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMessages([])}
-                className="text-xs text-muted-foreground"
-              >
-                <i className="ti ti-trash text-xs" /> Clear conversation
-              </Button>
-            </div>
-            {messages.map((turn) => (
-              <div key={turn.id} className="space-y-4">
-                <UserBubble text={turn.question} />
-                <AssistantMessage
-                  turn={turn}
-                  onFeedback={sendFeedback}
-                  onCopy={(text) => {
-                    void navigator.clipboard?.writeText(text).then(() => toast.ok("Copied!"));
-                  }}
-                />
-              </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
-        )}
-      </div>
+  function startNewChat() {
+    setCurrentThreadId(null);
+    setMessages([]);
+    setInput("");
+  }
 
-      <Composer
-        value={input}
-        onChange={setInput}
-        onSend={() => void run()}
-        busy={busy}
-        slug={slug}
-        onSlug={setSlug}
-        streaming={streaming}
-        onStreaming={handleSetStreaming}
-        pluginSlugs={plugins.data?.map((p) => p.slug) ?? []}
-      />
+  const threadList = threads.data ?? [];
+
+  return (
+    <div className="flex h-[calc(100dvh-7rem)] overflow-hidden gap-0">
+      {/* Thread sidebar */}
+      <aside className="w-56 shrink-0 flex flex-col border-r bg-card overflow-hidden">
+        <div className="px-3 py-3 border-b shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-2 text-xs"
+            onClick={startNewChat}
+          >
+            <i className="ti ti-plus text-sm" /> New chat
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto py-1">
+          {threads.isLoading ? (
+            <div className="flex justify-center py-4">
+              <Spinner />
+            </div>
+          ) : threadList.length === 0 ? (
+            <p className="px-3 py-4 text-xs text-muted-foreground text-center">No threads yet</p>
+          ) : (
+            threadList.map((t) => (
+              <ThreadItem
+                key={t.id}
+                thread={t}
+                active={t.id === currentThreadId}
+                onSelect={() => setCurrentThreadId(t.id)}
+                onDelete={() => deleteThreadMutation.mutate(t.id)}
+              />
+            ))
+          )}
+        </div>
+      </aside>
+
+      {/* Conversation area */}
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-4">
+          {messages.length === 0 ? (
+            <Greeting onPick={(q) => void run(q)} disabled={busy} />
+          ) : (
+            <div className="mx-auto max-w-3xl space-y-6 py-4">
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={startNewChat}
+                  className="text-xs text-muted-foreground"
+                >
+                  <i className="ti ti-plus text-xs" /> New chat
+                </Button>
+              </div>
+              {messages.map((turn) => (
+                <div key={turn.id} className="space-y-4">
+                  <UserBubble text={turn.question} />
+                  <AssistantMessage
+                    turn={turn}
+                    onFeedback={sendFeedback}
+                    onCopy={(text) => {
+                      void navigator.clipboard?.writeText(text).then(() => toast.ok("Copied!"));
+                    }}
+                  />
+                </div>
+              ))}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
+
+        <div className="mx-auto w-full max-w-3xl px-4">
+          <Composer
+            value={input}
+            onChange={setInput}
+            onSend={() => void run()}
+            busy={busy}
+            slug={slug}
+            onSlug={setSlug}
+            streaming={streaming}
+            onStreaming={handleSetStreaming}
+            pluginSlugs={plugins.data?.map((p) => p.slug) ?? []}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThreadItem({
+  thread,
+  active,
+  onSelect,
+  onDelete,
+}: {
+  thread: ThreadSummary;
+  active: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  return (
+    <div
+      className={cn(
+        "group relative flex items-start gap-1 px-2 py-2 cursor-pointer text-left rounded-md mx-1 my-0.5 transition-colors",
+        active ? "bg-primary/10 text-foreground" : "hover:bg-muted text-muted-foreground hover:text-foreground",
+      )}
+      onClick={onSelect}
+    >
+      <div className="flex-1 min-w-0">
+        <p className="truncate text-[12px] font-medium leading-snug">{thread.title}</p>
+        <p className="text-[10px] text-muted-foreground mt-0.5">{relativeTime(thread.updated_at)}</p>
+      </div>
+      {confirmDelete ? (
+        <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button
+            className="text-[10px] text-destructive hover:underline"
+            onClick={() => { onDelete(); setConfirmDelete(false); }}
+          >
+            Del
+          </button>
+          <button
+            className="text-[10px] text-muted-foreground hover:underline"
+            onClick={() => setConfirmDelete(false)}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <button
+          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-muted-foreground hover:text-destructive"
+          onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+          aria-label="Delete thread"
+        >
+          <i className="ti ti-trash text-xs" />
+        </button>
+      )}
     </div>
   );
 }
@@ -240,10 +458,14 @@ function AssistantMessage({
               {result.declined && <Badge variant="warning">declined</Badge>}
               {result.degraded && <Badge variant="warning">degraded</Badge>}
               {result.cached && <Badge variant="accent">cached</Badge>}
-              <Badge variant="secondary">
-                {result.provider} · {result.model}
-              </Badge>
-              <Badge variant="secondary">{result.latency_ms} ms</Badge>
+              {result.provider && (
+                <Badge variant="secondary">
+                  {result.provider} · {result.model}
+                </Badge>
+              )}
+              {result.latency_ms > 0 && (
+                <Badge variant="secondary">{result.latency_ms} ms</Badge>
+              )}
               <Button
                 variant="ghost"
                 size="sm"

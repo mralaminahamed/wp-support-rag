@@ -239,3 +239,27 @@ export interface SetupStatus {
   complete: boolean;
 }
 
+export interface ThreadSummary {
+  id: string;
+  title: string;
+  plugin_slug: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ThreadMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  query_id: string | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AppendMessageItem {
+  role: "user" | "assistant";
+  content: string;
+  query_id?: string | null;
+  meta?: Record<string, unknown> | null;
+}
+

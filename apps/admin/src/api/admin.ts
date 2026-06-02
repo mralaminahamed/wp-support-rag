@@ -1,7 +1,8 @@
 // Admin + health API calls (app /api/v1/admin/*, /health). Author: Al Amin Ahamed.
 import type {
-  Health,
+  AppendMessageItem,
   EmbeddingConfigUpdate,
+  Health,
   IngestAllResponse,
   IngestTriggerResponse,
   LLMConfig,
@@ -13,6 +14,8 @@ import type {
   RecentQuery,
   SetupStatus,
   SourceSummary,
+  ThreadMessage,
+  ThreadSummary,
 } from "@/types/api";
 
 export type PatchSourcePayload = { enabled: boolean };
@@ -132,5 +135,44 @@ export async function getSetupStatus(): Promise<SetupStatus> {
 
 export async function completeSetup(): Promise<SetupStatus> {
   const res = await apiClient.post<SetupStatus>("/api/v1/admin/setup/complete");
+  return res.data;
+}
+
+// ---------------------------------------------------------------------------
+// Conversation threads
+// ---------------------------------------------------------------------------
+
+export async function listThreads(): Promise<ThreadSummary[]> {
+  const res = await apiClient.get<ThreadSummary[]>("/api/v1/threads");
+  return res.data;
+}
+
+export async function createThread(
+  title: string,
+  pluginSlug: string | null,
+): Promise<ThreadSummary> {
+  const res = await apiClient.post<ThreadSummary>("/api/v1/threads", {
+    title,
+    plugin_slug: pluginSlug || null,
+  });
+  return res.data;
+}
+
+export async function deleteThread(threadId: string): Promise<void> {
+  await apiClient.delete(`/api/v1/threads/${threadId}`);
+}
+
+export async function getThreadMessages(threadId: string): Promise<ThreadMessage[]> {
+  const res = await apiClient.get<ThreadMessage[]>(`/api/v1/threads/${threadId}/messages`);
+  return res.data;
+}
+
+export async function appendMessages(
+  threadId: string,
+  messages: AppendMessageItem[],
+): Promise<ThreadMessage[]> {
+  const res = await apiClient.post<ThreadMessage[]>(`/api/v1/threads/${threadId}/messages`, {
+    messages,
+  });
   return res.data;
 }

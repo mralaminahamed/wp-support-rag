@@ -1,0 +1,55 @@
+# Auto-generated release notes configuration.
+# Categories map PR labels to sections in the GitHub Release body.
+# Author: Al Amin Ahamed.
+
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - dependencies
+
+  categories:
+    - title: "Breaking changes"
+      labels:
+        - breaking-change
+
+    - title: "New features"
+      labels:
+        - enhancement
+        - feature
+
+    - title: "Bug fixes"
+      labels:
+        - bug
+        - fix
+
+    - title: "Performance"
+      labels:
+        - performance
+
+    - title: "Security"
+      labels:
+        - security
+
+    - title: "Documentation"
+      labels:
+        - documentation
+        - docs
+
+    - title: "Infrastructure / CI"
+      labels:
+        - infra
+        - ci
+        - github-actions
+
+    - title: "Dependencies"
+      labels:
+        - dependencies
+        - python
+        - javascript
+
+    - title: "Maintenance"
+      labels:
+        - chore
+        - refactor
+        - cleanup

@@ -1,0 +1,62 @@
+# PR auto-labeler — assigns labels based on changed file paths.
+# Used by the actions/labeler action (add to a workflow if desired).
+# Author: Al Amin Ahamed.
+
+python:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/api/**/*.py"
+          - "apps/api/pyproject.toml"
+          - "apps/api/uv.lock"
+
+javascript:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/admin/**/*.ts"
+          - "apps/admin/**/*.tsx"
+          - "apps/web/**/*.ts"
+          - "apps/web/**/*.tsx"
+          - "package.json"
+          - "pnpm-lock.yaml"
+          - "pnpm-workspace.yaml"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "*.md"
+          - "docs/**"
+          - ".github/*.md"
+
+infra:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docker-compose*.yml"
+          - "config/**"
+          - "nginx/**"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+
+migration:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/api/app/db/migrations/**"
+          - "apps/api/app/db/models.py"
+
+eval:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/api/eval/**"
+          - "apps/api/app/prompts/**"
+          - "apps/api/app/rag/**"
+
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/api/app/auth/**"
+          - "apps/api/app/api/deps.py"
+          - "apps/api/app/api/routes_auth.py"
+          - "SECURITY.md"
+          - ".github/SECURITY.md"

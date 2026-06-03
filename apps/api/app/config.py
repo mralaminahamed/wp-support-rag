@@ -216,6 +216,9 @@ class Settings(BaseSettings):
     email_from: str = "WP Support RAG <no-reply@example.com>"
     password_reset_ttl_seconds: int = Field(default=3600, ge=60)
 
+    # --- Custom Adapters ---
+    custom_adapters_dir: str = "/app/custom_adapters"
+
     @property
     def embedding_dimensions(self) -> int:
         """Embedding width for the active embedding provider.

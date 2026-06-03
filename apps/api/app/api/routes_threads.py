@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, text as sqla_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_any_admin
@@ -155,8 +155,6 @@ async def append_messages(
     session: AsyncSession = Depends(get_session),
 ) -> list[ThreadMessageItem]:
     """Append one or more messages to a thread and bump updated_at."""
-    from sqlalchemy import text as sqla_text
-
     is_admin = "threads:read_all" in claims.permissions
     thread = await _get_thread_or_404(session, thread_id, uuid.UUID(claims.sub), is_admin=is_admin)
     created: list[ThreadMessage] = []

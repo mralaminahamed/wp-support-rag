@@ -13,7 +13,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -185,7 +185,6 @@ async def get_user(
 async def patch_user(
     user_id: uuid.UUID,
     payload: PatchUserRequest,
-    request: Request,
     claims=Depends(require_permission("users:write")),
     session: AsyncSession = Depends(get_session),
 ) -> AuthUserResponse:

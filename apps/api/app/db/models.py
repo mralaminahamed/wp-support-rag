@@ -431,6 +431,48 @@ class Feedback(Base):
     query: Mapped[Query] = relationship(back_populates="feedback")
 
 
+class AdapterPlugin(Base):
+    """A custom adapter plugin for extending source type support (Task 3).
+
+    Attributes:
+        id: Surrogate primary key.
+        slug: Unique plugin identifier used in configuration.
+        display_name: Human-readable plugin name for UI display.
+        version: Semantic version of the plugin.
+        source: Source descriptor (local path, package name, or URL).
+        entry_point: Python module path to the adapter class (e.g., 'my_plugin:MyAdapter').
+        filename: Filename of the plugin module if stored locally.
+        handles: List of source types this adapter handles (e.g., ['custom_api', 'jira']).
+        config_schema: JSON schema for plugin configuration validation.
+        status: Current status (loaded, error, etc.), defaults to 'loaded'.
+        error: Error message if status is 'error', null otherwise.
+        installed_at: When the plugin was installed.
+    """
+
+    __tablename__ = "adapter_plugins"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    slug: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    entry_point: Mapped[str | None] = mapped_column(Text, nullable=True)
+    filename: Mapped[str | None] = mapped_column(Text, nullable=True)
+    handles: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False)
+    config_schema: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'")
+    )
+    status: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'loaded'")
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    installed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+
 # ---------------------------------------------------------------------------
 # Auth / user-management models
 # ---------------------------------------------------------------------------

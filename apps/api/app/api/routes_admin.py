@@ -9,6 +9,7 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 import httpx
@@ -30,6 +31,7 @@ from app.api.schemas import (
     LLMProviderInfo,
     MetricsResponse,
     OllamaModelsResponse,
+    PatchConfigRequest,
     PatchSourceRequest,
     PluginRegistration,
     PluginSummary,
@@ -94,6 +96,19 @@ async def _get_source_or_404(
         )
     ).scalar_one_or_none()
     if source is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="source not found")
+    return plugin, source
+
+
+async def _get_source_by_id_or_404(
+    session: AsyncSession, plugin_slug: str, source_id: uuid.UUID
+) -> tuple[Plugin, Source]:
+    """Return (plugin, source) by source UUID or raise 404."""
+    plugin = await get_plugin_by_slug(session, plugin_slug)
+    if plugin is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
+    source = await session.get(Source, source_id)
+    if source is None or source.plugin_id != plugin.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="source not found")
     return plugin, source
 
@@ -571,6 +586,7 @@ async def list_plugin_sources(
             SourceSummary(
                 source_id=str(source.id),
                 source_type=source.source_type,
+                name=source.name,
                 enabled=source.enabled,
                 last_ingested_at=source.last_ingested_at.isoformat()
                 if source.last_ingested_at
@@ -599,75 +615,94 @@ async def add_plugin_source(
     _: object = Depends(require_permission("plugins:write")),
     session: AsyncSession = Depends(get_session),
 ) -> SourceSummary:
-    """Add a new source type to an existing plugin (FR-PM-2).
-
-    Args:
-        plugin_slug: The plugin to extend.
-        payload: The source type to add.
-        session: Database session.
-
-    Returns:
-        SourceSummary: The newly created source with no run data.
-
-    Raises:
-        HTTPException: 404 if the plugin is unknown; 409 if the source already exists.
-    """
+    """Add a new source to an existing plugin (FR-PM-2)."""
+    _MULTI_INSTANCE_TYPES = {"webpage", "rest_endpoint"}
     plugin = await get_plugin_by_slug(session, plugin_slug)
     if plugin is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
-    existing = (
-        await session.execute(
-            select(Source).where(
-                Source.plugin_id == plugin.id, Source.source_type == payload.source_type
+
+    if payload.source_type in _MULTI_INSTANCE_TYPES:
+        if not payload.name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="name is required for webpage and rest_endpoint sources",
             )
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="source already exists"
-        )
-    source = Source(plugin_id=plugin.id, source_type=payload.source_type, config={})
+        name = payload.name
+    else:
+        name = payload.source_type
+
+    if payload.source_type == "webpage":
+        if not payload.config.get("url"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="webpage source requires config.url",
+            )
+        depth = payload.config.get("max_depth", 2)
+        if not isinstance(depth, int) or not (1 <= depth <= 5):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="webpage config.max_depth must be an integer between 1 and 5",
+            )
+    elif payload.source_type == "rest_endpoint":
+        if not payload.config.get("url"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="rest_endpoint source requires config.url",
+            )
+        if not payload.config.get("content_field"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="rest_endpoint source requires config.content_field",
+            )
+        if not payload.config.get("id_field"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="rest_endpoint source requires config.id_field",
+            )
+
+    source = Source(
+        plugin_id=plugin.id,
+        source_type=payload.source_type,
+        name=name,
+        config=payload.config,
+    )
     session.add(source)
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="a source with this name already exists for this plugin",
+        )
     return SourceSummary(
         source_id=str(source.id),
         source_type=source.source_type,
+        name=source.name,
         enabled=source.enabled,
         last_ingested_at=None,
     )
 
 
 @router.patch(
-    "/plugins/{plugin_slug}/sources/{source_type}",
+    "/plugins/{plugin_slug}/sources/{source_id}",
     response_model=SourceSummary,
 )
 async def patch_plugin_source(
     plugin_slug: str,
-    source_type: str,
+    source_id: uuid.UUID,
     payload: PatchSourceRequest,
     _: object = Depends(require_permission("plugins:write")),
     session: AsyncSession = Depends(get_session),
 ) -> SourceSummary:
-    """Enable or disable a plugin source (FR-PM-3).
-
-    Args:
-        plugin_slug: The owning plugin.
-        source_type: The source to update.
-        payload: New enabled state.
-        session: Database session.
-
-    Returns:
-        SourceSummary: Updated source summary (no run data refreshed).
-
-    Raises:
-        HTTPException: 404 if the plugin or source is not found.
-    """
-    _, source = await _get_source_or_404(session, plugin_slug, source_type)
+    """Enable or disable a plugin source (FR-PM-3)."""
+    _, source = await _get_source_by_id_or_404(session, plugin_slug, source_id)
     source.enabled = payload.enabled
     await session.commit()
     return SourceSummary(
         source_id=str(source.id),
         source_type=source.source_type,
+        name=source.name,
         enabled=source.enabled,
         last_ingested_at=source.last_ingested_at.isoformat()
         if source.last_ingested_at
@@ -676,53 +711,58 @@ async def patch_plugin_source(
 
 
 @router.delete(
-    "/plugins/{plugin_slug}/sources/{source_type}",
+    "/plugins/{plugin_slug}/sources/{source_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_plugin_source(
     plugin_slug: str,
-    source_type: str,
+    source_id: uuid.UUID,
     _: object = Depends(require_permission("plugins:write")),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    """Remove a source from a plugin (FR-PM-2).
-
-    Args:
-        plugin_slug: The owning plugin.
-        source_type: The source to delete.
-        session: Database session.
-
-    Raises:
-        HTTPException: 404 if the plugin or source is not found.
-    """
-    _, source = await _get_source_or_404(session, plugin_slug, source_type)
+    """Remove a source from a plugin (FR-PM-2)."""
+    _, source = await _get_source_by_id_or_404(session, plugin_slug, source_id)
     await session.delete(source)
     await session.commit()
 
 
-@router.post("/ingest/{plugin_slug}/{source_type}", response_model=IngestTriggerResponse)
+@router.patch(
+    "/plugins/{plugin_slug}/sources/{source_id}/config",
+    response_model=SourceSummary,
+)
+async def patch_plugin_source_config(
+    plugin_slug: str,
+    source_id: uuid.UUID,
+    payload: PatchConfigRequest,
+    _: object = Depends(require_permission("plugins:write")),
+    session: AsyncSession = Depends(get_session),
+) -> SourceSummary:
+    """Replace a source's adapter config."""
+    _, source = await _get_source_by_id_or_404(session, plugin_slug, source_id)
+    source.config = payload.config
+    await session.commit()
+    return SourceSummary(
+        source_id=str(source.id),
+        source_type=source.source_type,
+        name=source.name,
+        enabled=source.enabled,
+        last_ingested_at=source.last_ingested_at.isoformat()
+        if source.last_ingested_at
+        else None,
+    )
+
+
+@router.post("/ingest/{plugin_slug}/sources/{source_id}", response_model=IngestTriggerResponse)
 async def trigger_ingest_source(
     plugin_slug: str,
-    source_type: str,
+    source_id: uuid.UUID,
     _: object = Depends(require_permission("ingestion:trigger")),
     session: AsyncSession = Depends(get_session),
 ) -> IngestTriggerResponse:
-    """Dispatch ingestion for a single source (FR-IN-6).
-
-    Args:
-        plugin_slug: The plugin that owns the source.
-        source_type: The specific source to ingest.
-        session: Database session.
-
-    Returns:
-        IngestTriggerResponse: Always enqueued_sources=1 on success.
-
-    Raises:
-        HTTPException: 404 if the plugin or source is not found.
-    """
+    """Dispatch ingestion for a single source (FR-IN-6)."""
     from app.ingestion.tasks import ingest_source_task
 
-    _, source = await _get_source_or_404(session, plugin_slug, source_type)
+    _, source = await _get_source_by_id_or_404(session, plugin_slug, source_id)
     run = IngestionRun(source_id=source.id, status="queued")
     session.add(run)
     await session.flush()

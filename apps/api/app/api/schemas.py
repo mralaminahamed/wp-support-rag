@@ -10,7 +10,7 @@ Author: Al Amin Ahamed.
 from __future__ import annotations
 
 import uuid
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -175,6 +175,7 @@ class SourceSummary(BaseModel):
 
     source_id: str
     source_type: str
+    name: str
     enabled: bool
     last_ingested_at: str | None
     chunk_count: int = 0
@@ -212,13 +213,17 @@ class PatchSourceRequest(BaseModel):
 
 
 class AddSourceRequest(BaseModel):
-    """Add a source to an existing plugin.
-
-    Attributes:
-        source_type: The source kind to add.
-    """
+    """Add a source to an existing plugin."""
 
     source_type: str
+    name: str | None = None
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class PatchConfigRequest(BaseModel):
+    """Update the config of an existing source."""
+
+    config: dict[str, Any]
 
 
 class IngestTriggerResponse(BaseModel):

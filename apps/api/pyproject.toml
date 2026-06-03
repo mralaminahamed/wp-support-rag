@@ -28,6 +28,8 @@ dependencies = [
     "typer>=0.26.4",
     "faker>=40.19.1",
     "aiosmtplib>=3.0",
+    "python-multipart>=0.0.12",
+    "wp-support-rag-sdk",
 ]
 
 [dependency-groups]
@@ -50,6 +52,9 @@ packages = ["app", "eval"]
 
 [tool.uv]
 package = true
+
+[tool.uv.sources]
+wp-support-rag-sdk = { path = "../../packages/wp_support_rag_sdk", editable = true }
 
 [tool.ruff]
 line-length = 100

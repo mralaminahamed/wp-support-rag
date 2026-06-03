@@ -1,0 +1,10 @@
+[project]
+name = "wp-support-rag-sdk"
+version = "0.1.0"
+description = "Adapter interface types for wp-support-rag custom adapters."
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.9"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

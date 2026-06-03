@@ -1,13 +1,12 @@
 // Two-step add-source modal: type picker → config form. Author: Al Amin Ahamed.
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { addSource } from "@/api/admin";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { addSource, getAdapterTypes } from "@/api/admin";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ToastProvider";
 import { extractErrorMessage } from "@/lib/queryClient";
-import { SOURCE_TYPES } from "@/types/api";
-
-const MULTI_INSTANCE_TYPES = new Set(["webpage", "rest_endpoint"]);
+import type { AdapterTypeInfo } from "@/types/api";
+import { JsonSchemaForm } from "@/components/JsonSchemaForm";
 
 const TYPE_ICONS: Record<string, string> = {
   github_readme: "ti-brand-github",
@@ -290,6 +289,13 @@ export function AddSourceModal({
   const [selectedType, setSelectedType] = useState<string>("");
   const [webCfg, setWebCfg] = useState<WebpageConfig>(DEFAULT_WEBPAGE);
   const [restCfg, setRestCfg] = useState<RestConfig>(DEFAULT_REST);
+  const [customCfg, setCustomCfg] = useState<Record<string, unknown>>({});
+
+  const { data: adapterTypes = [] } = useQuery({
+    queryKey: ["adapter-types"],
+    queryFn: getAdapterTypes,
+    staleTime: 60_000,
+  });
 
   const mutation = useMutation({
     mutationFn: ({ type, name, config }: { type: string; name: string; config: Record<string, unknown> }) =>
@@ -303,15 +309,15 @@ export function AddSourceModal({
     onError: (err) => toast.err(extractErrorMessage(err)),
   });
 
-  const singleTypes = SOURCE_TYPES.filter((t) => !MULTI_INSTANCE_TYPES.has(t) && !usedTypes.has(t));
-  const multiTypes = SOURCE_TYPES.filter((t) => MULTI_INSTANCE_TYPES.has(t));
+  const singleTypes = adapterTypes.filter((t) => !t.multi_instance && !usedTypes.has(t.source_type));
+  const multiTypes = adapterTypes.filter((t) => t.multi_instance);
 
-  function handlePickType(type: string) {
-    if (MULTI_INSTANCE_TYPES.has(type)) {
-      setSelectedType(type);
+  function handlePickType(typeInfo: AdapterTypeInfo) {
+    if (typeInfo.multi_instance) {
+      setSelectedType(typeInfo.source_type);
       setStep("configure");
     } else {
-      mutation.mutate({ type, name: type, config: {} });
+      mutation.mutate({ type: typeInfo.source_type, name: typeInfo.source_type, config: {} });
     }
   }
 
@@ -327,19 +333,28 @@ export function AddSourceModal({
           ...(webCfg.url_filter ? { url_filter: webCfg.url_filter } : {}),
         },
       });
-    } else {
+    } else if (selectedType === "rest_endpoint") {
       mutation.mutate({
         type: "rest_endpoint",
         name: restCfg.name,
         config: buildRestConfig(restCfg),
+      });
+    } else {
+      // custom adapter — use JsonSchemaForm's output
+      mutation.mutate({
+        type: selectedType,
+        name: (customCfg.name as string) ?? selectedType,
+        config: customCfg,
       });
     }
   }
 
   const configValid = selectedType === "webpage"
     ? webCfg.url.trim() !== "" && webCfg.name.trim() !== ""
-    : restCfg.url.trim() !== "" && restCfg.name.trim() !== "" &&
-      restCfg.content_field.trim() !== "" && restCfg.id_field.trim() !== "";
+    : selectedType === "rest_endpoint"
+    ? restCfg.url.trim() !== "" && restCfg.name.trim() !== "" &&
+      restCfg.content_field.trim() !== "" && restCfg.id_field.trim() !== ""
+    : true;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -365,29 +380,34 @@ export function AddSourceModal({
                   <div className="grid grid-cols-2 gap-2">
                     {singleTypes.map((t) => (
                       <button
-                        key={t}
+                        key={t.source_type}
                         onClick={() => handlePickType(t)}
                         disabled={mutation.isPending}
                         className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted transition-colors disabled:opacity-50"
                       >
-                        <i className={`ti ${TYPE_ICONS[t] ?? "ti-file"} text-muted-foreground`} />
-                        <span className="font-mono text-[12px]">{t}</span>
+                        <i className={`ti ${TYPE_ICONS[t.source_type] ?? "ti-file"} text-muted-foreground`} />
+                        <span className="font-mono text-[12px]">{t.source_type}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
               <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2">Custom sources (multiple allowed)</p>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Configurable sources (multiple allowed)</p>
                 <div className="grid grid-cols-2 gap-2">
                   {multiTypes.map((t) => (
                     <button
-                      key={t}
+                      key={t.source_type}
                       onClick={() => handlePickType(t)}
                       className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted transition-colors"
                     >
-                      <i className={`ti ${TYPE_ICONS[t] ?? "ti-file"} text-muted-foreground`} />
-                      <span className="font-mono text-[12px]">{t}</span>
+                      <i className={`ti ${TYPE_ICONS[t.source_type] ?? "ti-file"} text-muted-foreground`} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[12px] font-medium truncate">{t.display_name}</span>
+                        {!t.is_builtin && (
+                          <span className="font-mono text-[10px] text-muted-foreground truncate">{t.source_type}</span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -397,8 +417,14 @@ export function AddSourceModal({
             <div className="space-y-4">
               {selectedType === "webpage" ? (
                 <WebpageConfigForm cfg={webCfg} setCfg={setWebCfg} />
-              ) : (
+              ) : selectedType === "rest_endpoint" ? (
                 <RestConfigForm cfg={restCfg} setCfg={setRestCfg} />
+              ) : (
+                <JsonSchemaForm
+                  schema={adapterTypes.find(t => t.source_type === selectedType)?.config_schema ?? {}}
+                  value={customCfg}
+                  onChange={setCustomCfg}
+                />
               )}
               <div className="flex justify-between pt-1">
                 <Button variant="ghost" size="sm" onClick={() => setStep("pick")}>

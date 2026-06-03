@@ -160,6 +160,7 @@ async def list_invites(
             email=invite.email,
             role_name=role_name,
             status=st,
+            created_at=invite.created_at.isoformat(),
             expires_at=invite.expires_at.isoformat(),
             used_at=invite.used_at.isoformat() if invite.used_at else None,
         ))

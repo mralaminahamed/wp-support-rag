@@ -51,6 +51,7 @@ export interface InviteSummary {
   email: string;
   role_name: string | null;
   status: "pending" | "expired" | "accepted";
+  created_at: string;
   expires_at: string;
   used_at: string | null;
 }

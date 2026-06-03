@@ -533,6 +533,7 @@ class InviteSummary(BaseModel):
     email: str
     role_name: str | None
     status: Literal["pending", "expired", "accepted"]
+    created_at: str
     expires_at: str
     used_at: str | None
 

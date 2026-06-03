@@ -354,7 +354,7 @@ async def _run_ingest(
     from app.config import get_settings  # noqa: PLC0415
     from app.db.engine import dispose_engine, get_sessionmaker  # noqa: PLC0415
     from app.db.models import Plugin, Source  # noqa: PLC0415
-    from app.ingestion.adapter_registry import build_registry  # noqa: PLC0415
+    from app.ingestion.adapter_registry import build_registry, init_registry  # noqa: PLC0415
     from app.ingestion.adapters.base import SourceContext  # noqa: PLC0415
     from app.ingestion.fetch_cache import FetchCache  # noqa: PLC0415
     from app.ingestion.tasks import ingest_source  # noqa: PLC0415
@@ -362,6 +362,7 @@ async def _run_ingest(
     cache = FetchCache(cache_dir) if from_cache else None
     sm = get_sessionmaker()
     registry = await build_registry(sm)
+    init_registry(registry)
 
     async with sm() as session:
         q = select(Source, Plugin).join(Plugin, Plugin.id == Source.plugin_id).where(

@@ -113,7 +113,7 @@ class OllamaEmbeddingClient:
         """
         self._base_url = settings.ollama_base_url.rstrip("/")
         self._model = settings.ollama_embed_model
-        self._timeout = settings.http_timeout_seconds
+        self._timeout = settings.ollama_embed_timeout_seconds
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch via the Ollama embeddings API.
@@ -134,8 +134,12 @@ class OllamaEmbeddingClient:
                     f"{self._base_url}/api/embed",
                     json={"model": self._model, "input": texts},
                 )
+        except httpx.TimeoutException:
+            raise  # transient — let _embed_batch_with_retry handle retries
         except httpx.HTTPError as exc:
-            raise EmbeddingUnavailable(f"ollama embeddings unavailable: {exc}") from exc
+            raise EmbeddingUnavailable(
+                f"ollama embeddings unavailable: {type(exc).__name__}: {exc}"
+            ) from exc
         if response.status_code != 200:
             raise EmbeddingUnavailable(
                 f"ollama embeddings failed: HTTP {response.status_code} {response.text[:200]}"

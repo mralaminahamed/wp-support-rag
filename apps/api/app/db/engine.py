@@ -16,6 +16,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import lru_cache
 
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -95,6 +96,23 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
         except Exception:
             await session.rollback()
             raise
+
+
+def get_worker_sessionmaker() -> async_sessionmaker[AsyncSession]:
+    """Session factory for Celery tasks using NullPool.
+
+    Each asyncio.run() in a Celery task creates a fresh event loop.  The
+    shared pooled engine caches asyncpg connections bound to the first loop,
+    causing "Future attached to a different loop" on subsequent tasks.
+    NullPool creates and closes a connection per operation, so there is nothing
+    to re-bind across loops.
+    """
+    engine = create_async_engine(
+        get_settings().database_dsn,
+        poolclass=NullPool,
+        future=True,
+    )
+    return async_sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
 
 async def dispose_engine() -> None:

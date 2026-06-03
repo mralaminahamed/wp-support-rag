@@ -160,6 +160,7 @@ class Settings(BaseSettings):
     dimensionality_mode: DimensionalityMode = "halfvec_3072"
     ollama_embed_model: str = "nomic-embed-text"
     ollama_embed_dimensions: int = Field(default=768, ge=1, le=4000)
+    ollama_embed_timeout_seconds: float = Field(default=300.0, gt=0.0)
 
     # --- Chunking (§2.3) ---
     chunk_target_tokens: int = Field(default=512, ge=1)

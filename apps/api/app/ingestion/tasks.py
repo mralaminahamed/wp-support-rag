@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import get_settings
-from app.db.engine import get_sessionmaker
+from app.db.engine import get_worker_sessionmaker
 from app.db.models import Document, IngestionRun, Plugin, Source
 from app.db.redis import get_redis
 from app.ingestion.adapters.base import RawDocument, SourceAdapter, SourceContext
@@ -199,7 +199,7 @@ async def ingest_source(
     Returns:
         IngestSummary: The outcome counts and status for this source.
     """
-    factory = sessionmaker or get_sessionmaker()
+    factory = sessionmaker or get_worker_sessionmaker()
 
     async with factory() as session:
         source = await session.get(Source, source_id)
@@ -301,7 +301,7 @@ async def ingest_plugin(plugin_id: uuid.UUID) -> list[IngestSummary]:
     Returns:
         list[IngestSummary]: One summary per enabled source.
     """
-    factory = get_sessionmaker()
+    factory = get_worker_sessionmaker()
     async with factory() as session:
         result = await session.execute(
             select(Source.id).where(Source.plugin_id == plugin_id, Source.enabled.is_(True))
@@ -339,7 +339,7 @@ def ingest_plugin_task(plugin_id: str) -> list[str]:
     Returns:
         list[str]: The dispatched source ids.
     """
-    factory = get_sessionmaker()
+    factory = get_worker_sessionmaker()
 
     async def _source_ids() -> list[str]:
         async with factory() as session:

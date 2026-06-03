@@ -23,6 +23,7 @@ import {
   PluginStep,
   SetupWizardLayout,
 } from "@/pages/SetupWizardPage";
+import { AdaptersPage } from "@/pages/AdaptersPage";
 import { ThreadsListPage } from "@/pages/ThreadsListPage";
 import { UsersPage } from "@/pages/UsersPage";
 
@@ -77,6 +78,7 @@ export const router = createBrowserRouter([
             ],
           },
           { path: "users", element: <UsersPage /> },
+          { path: "adapters", element: <AdaptersPage /> },
           {
             path: "profile",
             element: <ProfilePage />,

@@ -40,20 +40,22 @@ class OpenCodeZenProvider:
 
     name: ClassVar[str] = "opencode_zen"
     title: ClassVar[str] = "OpenCode Zen"
-    default_model_id: ClassVar[str] = "opencode/claude-sonnet-4-6"
+    default_model_id: ClassVar[str] = "big-pickle"
     available_models: ClassVar[list[str]] = [
-        "opencode/claude-sonnet-4-6",
-        "opencode/claude-opus-4-7",
-        "opencode/claude-haiku-4-5",
-        "opencode/gpt-5.5",
-        "opencode/gpt-5.1",
-        "opencode/gpt-5.1-codex",
-        "opencode/gemini-3.5-flash",
-        "opencode/gemini-3.1-pro",
-        "opencode/deepseek-v4-flash-free",
-        "opencode/big-pickle",
-        "opencode/qwen3.5-plus",
-        "opencode/kimi-k2.6",
+        "big-pickle",
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "gpt-5.5",
+        "gpt-5.5-pro",
+        "gemini-3.5-flash",
+        "deepseek-v4-flash",
+        "deepseek-v4-flash-free",
+        "grok-build-0.1",
+        "kimi-k2.6",
+        "qwen3.6-plus",
+        "minimax-m2.7",
+        "mimo-v2.5-free",
+        "nemotron-3-super-free",
     ]
 
     def __init__(self, settings: Settings) -> None:

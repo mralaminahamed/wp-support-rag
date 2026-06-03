@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     openai_model: str = "gpt-4o-mini"
     gemini_model: str = "gemini-2.0-flash"
-    opencode_zen_model: str = "opencode/claude-sonnet-4-6"
+    opencode_zen_model: str = "big-pickle"
     ollama_model: str = "llama3.2"
     llm_timeout_seconds: float = Field(default=60.0, gt=0.0)
     llm_max_retries: int = Field(default=3, ge=0)

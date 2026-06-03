@@ -30,6 +30,8 @@ SourceType = Literal[
     "wporg_faq",
     "wporg_changelog",
     "wporg_support",
+    "webpage",
+    "rest_endpoint",
 ]
 
 
@@ -123,6 +125,7 @@ async def add_source(
     *,
     plugin_id: Any,
     source_type: str,
+    name: str | None = None,
     config: dict[str, Any] | None = None,
     enabled: bool = True,
 ) -> Source:
@@ -146,6 +149,7 @@ async def add_source(
     source = Source(
         plugin_id=plugin_id,
         source_type=source_type,
+        name=name or source_type,
         config=config or {},
         enabled=enabled,
     )

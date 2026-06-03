@@ -9,7 +9,8 @@ from pydantic import ValidationError
 
 def test_defaults_are_internally_consistent() -> None:
     """The documented defaults load and satisfy every cross-field invariant."""
-    settings = Settings()
+    # Use explicit embedding_provider to test OpenAI-path defaults independent of .env.
+    settings = Settings(embedding_provider="openai")
 
     assert settings.dimensionality_mode == "halfvec_3072"
     assert settings.embedding_dimensions == 3072
@@ -19,7 +20,7 @@ def test_defaults_are_internally_consistent() -> None:
 
 def test_vector_1536_mode_reports_reduced_dimensions() -> None:
     """The pgvector < 0.7.0 fallback exposes 1536 dimensions (NFR-PT-2)."""
-    settings = Settings(dimensionality_mode="vector_1536")
+    settings = Settings(embedding_provider="openai", dimensionality_mode="vector_1536")
 
     assert settings.embedding_dimensions == 1536
 

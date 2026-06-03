@@ -490,6 +490,7 @@ ALL_PERMISSIONS = (
     "users:read",
     "users:write",
     "users:invite",
+    "threads:read_all",
 )
 """Canonical permission strings enforced by require_permission."""
 

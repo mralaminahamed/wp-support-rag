@@ -6,6 +6,7 @@ Uses TestClient with dependency overrides — no live database required.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,6 +38,7 @@ def _make_user(email="a@example.com", active=True):
     user.password_hash = "$2b$12$KIXf5k1qo7GUfmC8bBuV2OobzH2PBvJt3rT0TUJJpR1F7z4GaKEtu"
     user.roles = [role]
     user.permissions = []
+    user.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
     return user
 
 

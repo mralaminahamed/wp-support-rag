@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,6 +77,7 @@ def test_create_user_returns_201(client_admin: TestClient) -> None:
     mock_role.permissions = []
     mock_user.roles = [mock_role]
     mock_user.permissions = []
+    mock_user.created_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
     with patch("app.api.routes_users._create_user", new=AsyncMock(return_value=mock_user)):
         resp = client_admin.post(

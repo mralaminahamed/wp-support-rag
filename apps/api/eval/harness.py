@@ -194,7 +194,7 @@ async def _seed_corpus(records: list[GoldenRecord], embedder: DeterministicEmbed
                 )
                 session.add(plugin)
                 await session.flush()
-                source = Source(plugin_id=plugin.id, source_type="wporg_faq")
+                source = Source(plugin_id=plugin.id, source_type="wporg_faq", name="wporg_faq")
                 session.add(source)
                 await session.flush()
                 plugins[record.plugin_slug] = plugin

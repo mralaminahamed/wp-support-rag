@@ -16,6 +16,7 @@ ALL_PERMISSIONS: frozenset[str] = frozenset(
         "users:read",
         "users:write",
         "users:invite",
+        "threads:read_all",
     )
 )
 

@@ -58,7 +58,7 @@ async def test_chunk_roundtrip_via_hnsw_cosine() -> None:
         session.add(plugin)
         await session.flush()
 
-        source = Source(plugin_id=plugin.id, source_type="github_readme")
+        source = Source(plugin_id=plugin.id, source_type="github_readme", name="github_readme")
         session.add(source)
         await session.flush()
 

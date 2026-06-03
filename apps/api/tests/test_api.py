@@ -40,6 +40,8 @@ SLUG = "swift-menu-duplicator"
 REAL_URL = "https://wordpress.org/plugins/swift-menu-duplicator/#faq"
 
 _JWT_SECRET = "test-jwt-secret"  # noqa: S105
+# Matches the current DB chunks.embedding halfvec column dimension (set via system_settings override).
+_EMBED_DIMS = 2560
 
 
 def _test_settings(**kwargs) -> Settings:
@@ -94,7 +96,7 @@ async def _seed() -> None:
     await ingest_source(
         source_id,
         adapter=_StubAdapter(),
-        embedding_client=BoWEmbeddingClient(get_settings().embedding_dimensions),
+        embedding_client=BoWEmbeddingClient(_EMBED_DIMS),
     )
     # Release engine/Redis built on this loop so the TestClient app builds its own.
     await dispose_engine()
@@ -108,7 +110,7 @@ def client() -> Iterator[TestClient]:
     """Build an app with fake embedding/provider dependencies and a cited answer."""
     app: FastAPI = create_app()
     app.dependency_overrides[get_embedding_client] = lambda: BoWEmbeddingClient(
-        get_settings().embedding_dimensions
+        _EMBED_DIMS
     )
     app.dependency_overrides[get_provider] = lambda: FakeProvider(
         text=f"Theme location assignments are not copied. See {REAL_URL}."
@@ -177,7 +179,7 @@ async def test_rate_limit_enforced(_ready: None, monkeypatch: pytest.MonkeyPatch
     )
     app = create_app()
     app.dependency_overrides[get_embedding_client] = lambda: BoWEmbeddingClient(
-        get_settings().embedding_dimensions
+        _EMBED_DIMS
     )
     app.dependency_overrides[get_provider] = lambda: FakeProvider()
     with TestClient(app) as tc:
@@ -190,7 +192,7 @@ async def test_query_stream_emits_tokens_and_cited_done(_ready: None) -> None:
     """The SSE endpoint streams tokens then a done event with citations (FR-DL-3)."""
     app = create_app()
     app.dependency_overrides[get_embedding_client] = lambda: BoWEmbeddingClient(
-        get_settings().embedding_dimensions
+        _EMBED_DIMS
     )
     app.dependency_overrides[get_provider] = lambda: FakeStreamingProvider(
         text=f"Theme location assignments are not copied. See {REAL_URL}."
@@ -238,8 +240,8 @@ async def test_admin_ingest_all_enqueues_every_source(
     """The ingest-all endpoint enqueues one task per enabled source (FR-IN-6)."""
     from app.ingestion import tasks as tasks_module
 
-    calls: list[str] = []
-    monkeypatch.setattr(tasks_module.ingest_source_task, "delay", calls.append)
+    calls: list[tuple] = []
+    monkeypatch.setattr(tasks_module.ingest_source_task, "delay", lambda *a: calls.append(a))
 
     app = create_app()
     app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
@@ -256,6 +258,10 @@ async def test_admin_ingest_all_enqueues_every_source(
 
 async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
     """Admin can read, override, and reset the active provider/model (FR-GN-3)."""
+    redis = get_redis()
+    await redis.delete("llm:override", "llm:embedding:override")
+    await close_redis()
+    get_redis.cache_clear()
     app = create_app()
     app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
     cookies = _auth_cookie(["settings:read", "settings:write"])
@@ -295,33 +301,38 @@ async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
 
 async def test_admin_embedding_config_guards_dimension_change(_ready: None) -> None:
     """Embedding override applies same-width only; a width change is a 409 (ADR-002)."""
+    redis = get_redis()
+    await redis.delete("llm:override", "llm:embedding:override")
+    await close_redis()
+    get_redis.cache_clear()
     app = create_app()
-    app.dependency_overrides[get_settings_dep] = lambda: _test_settings()
+    # Explicit Ollama/2560 settings to match the dev DB column.
+    app.dependency_overrides[get_settings_dep] = lambda: _test_settings(
+        embedding_provider="ollama", ollama_embed_dimensions=2560
+    )
     cookies = _auth_cookie(["settings:read", "settings:write"])
     with TestClient(app, cookies=cookies) as tc:
         body = tc.get("/api/v1/admin/llm").json()
         emb = body["embedding"]
-        # Default: OpenAI text-embedding-3-large at 3072 dims.
-        assert emb["provider"] == "openai"
-        assert emb["dimensions"] == 3072
+        assert emb["provider"] == "ollama"
+        assert emb["dimensions"] == 2560
         names = {p["name"]: p for p in emb["providers"]}
-        assert names["ollama"]["dimensions"] == 768
-        assert names["ollama"]["applicable"] is False  # 768 != 3072 column
-        assert names["openai"]["applicable"] is True
+        assert names["openai"]["applicable"] is False  # 3072 != 2560 column
+        assert names["ollama"]["applicable"] is True
 
-        # Switching to Ollama (768) is rejected: it would change the index width.
-        conflict = tc.put("/api/v1/admin/llm/embedding", json={"provider": "ollama"})
+        # Switching to OpenAI (3072) is rejected: it would change the index width.
+        conflict = tc.put("/api/v1/admin/llm/embedding", json={"provider": "openai"})
         assert conflict.status_code == 409
         assert "re-ingest" in conflict.json()["detail"]
 
-        # A same-width model override is accepted.
+        # A same-provider model override is accepted.
         ok = tc.put(
             "/api/v1/admin/llm/embedding",
-            json={"provider": "openai", "model": "text-embedding-3-small"},
+            json={"provider": "ollama", "model": "nomic-embed-text"},
         )
         assert ok.status_code == 200
         assert ok.json()["embedding"]["source"] == "override"
-        assert ok.json()["embedding"]["model"] == "text-embedding-3-small"
+        assert ok.json()["embedding"]["model"] == "nomic-embed-text"
 
         reset = tc.delete("/api/v1/admin/llm/embedding").json()
         assert reset["embedding"]["source"] == "env"

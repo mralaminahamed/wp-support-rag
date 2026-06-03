@@ -57,6 +57,8 @@ SOURCE_TYPES = (
     "wporg_faq",
     "wporg_changelog",
     "wporg_support",
+    "webpage",
+    "rest_endpoint",
 )
 RUN_STATUSES = ("queued", "running", "succeeded", "failed")
 FEEDBACK_RATINGS = ("helpful", "not_helpful")
@@ -171,10 +173,11 @@ class Source(Base):
         CheckConstraint(
             "source_type IN ("
             "'github_readme','github_changelog','github_docs',"
-            "'github_issues','wporg_faq','wporg_changelog','wporg_support')",
+            "'github_issues','wporg_faq','wporg_changelog','wporg_support',"
+            "'webpage','rest_endpoint')",
             name="sources_source_type_check",
         ),
-        UniqueConstraint("plugin_id", "source_type", name="sources_plugin_id_source_type_key"),
+        UniqueConstraint("plugin_id", "name", name="sources_plugin_id_name_key"),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -182,6 +185,7 @@ class Source(Base):
         ForeignKey("plugins.id", ondelete="CASCADE"), nullable=False
     )
     source_type: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
     config: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )

@@ -290,7 +290,7 @@ async def set_embedding_config(
             ),
         )
     model = (payload.model or "").strip() or embed_model_for(settings, provider)
-    await set_embedding_override(redis, provider, model)
+    await set_embedding_override(redis, provider, model, target_dims)
     return await _llm_config(redis, settings)
 
 

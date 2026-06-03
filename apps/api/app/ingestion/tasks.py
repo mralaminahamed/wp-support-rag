@@ -27,6 +27,8 @@ from app.db.models import Document, IngestionRun, Plugin, Source
 from app.db.redis import get_redis
 from app.ingestion.adapters.base import RawDocument, SourceAdapter, SourceContext
 from app.ingestion.adapters.github import GitHubAdapter
+from app.ingestion.adapters.rest_endpoint import RestEndpointAdapter
+from app.ingestion.adapters.webpage import WebpageAdapter
 from app.ingestion.adapters.wporg import WporgAdapter
 from app.ingestion.normalize import normalize
 from app.ingestion.summary import IngestSummary
@@ -60,9 +62,13 @@ celery_app.conf.update(
 
 _GITHUB_ADAPTER = GitHubAdapter()
 _WPORG_ADAPTER = WporgAdapter()
+_WEBPAGE_ADAPTER = WebpageAdapter()
+_REST_ADAPTER = RestEndpointAdapter()
 _ADAPTERS: dict[str, SourceAdapter] = {
     **dict.fromkeys(_GITHUB_ADAPTER.handles, _GITHUB_ADAPTER),
     **dict.fromkeys(_WPORG_ADAPTER.handles, _WPORG_ADAPTER),
+    **dict.fromkeys(_WEBPAGE_ADAPTER.handles, _WEBPAGE_ADAPTER),
+    **dict.fromkeys(_REST_ADAPTER.handles, _REST_ADAPTER),
 }
 
 

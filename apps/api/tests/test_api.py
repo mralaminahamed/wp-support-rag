@@ -19,6 +19,7 @@ from app.config import Settings, get_settings
 from app.db.engine import dispose_engine, get_engine, get_sessionmaker
 from app.db.models import Plugin
 from app.db.redis import close_redis, get_redis
+from app.ingestion.adapter_registry import build_registry, init_registry
 from app.ingestion.adapters.base import RawDocument, SourceContext
 from app.ingestion.registry import add_source, create_plugin
 from app.ingestion.tasks import ingest_source
@@ -74,6 +75,9 @@ class _StubAdapter:
 
 async def _seed() -> None:
     """Register the plugin and ingest one deterministic document."""
+    # Ensure the AdapterRegistry is initialised before add_source() is called.
+    registry = await build_registry(get_sessionmaker())
+    init_registry(registry)
     # Clear the per-IP rate-limit counter so a fresh budget applies each test.
     redis = get_redis()
     keys = [key async for key in redis.scan_iter(match="ratelimit:*")]

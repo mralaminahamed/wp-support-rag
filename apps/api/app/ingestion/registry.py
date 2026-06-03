@@ -19,7 +19,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import SOURCE_TYPES, Plugin, Source
+from app.db.models import Plugin, Source
+from app.ingestion.adapter_registry import get_registry
 
 SourceType = Literal[
     "github_readme",
@@ -140,7 +141,7 @@ async def add_source(
     Raises:
         ValueError: If ``source_type`` is not a supported type.
     """
-    if source_type not in SOURCE_TYPES:
+    if source_type not in get_registry().all_handles():
         raise ValueError(f"unknown source_type: {source_type}")
     source = Source(
         plugin_id=plugin_id,

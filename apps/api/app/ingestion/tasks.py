@@ -18,6 +18,7 @@ import uuid
 from datetime import UTC, datetime
 
 from celery import Celery
+from celery.signals import worker_init
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -25,11 +26,8 @@ from app.config import get_settings
 from app.db.engine import get_worker_sessionmaker
 from app.db.models import Document, IngestionRun, Plugin, Source
 from app.db.redis import get_redis
+from app.ingestion.adapter_registry import build_registry, get_registry, init_registry
 from app.ingestion.adapters.base import RawDocument, SourceAdapter, SourceContext
-from app.ingestion.adapters.github import GitHubAdapter
-from app.ingestion.adapters.rest_endpoint import RestEndpointAdapter
-from app.ingestion.adapters.webpage import WebpageAdapter
-from app.ingestion.adapters.wporg import WporgAdapter
 from app.ingestion.normalize import normalize
 from app.ingestion.summary import IngestSummary
 from app.processing.centroid import refresh_plugin_centroid
@@ -60,16 +58,13 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-_GITHUB_ADAPTER = GitHubAdapter()
-_WPORG_ADAPTER = WporgAdapter()
-_WEBPAGE_ADAPTER = WebpageAdapter()
-_REST_ADAPTER = RestEndpointAdapter()
-_ADAPTERS: dict[str, SourceAdapter] = {
-    **dict.fromkeys(_GITHUB_ADAPTER.handles, _GITHUB_ADAPTER),
-    **dict.fromkeys(_WPORG_ADAPTER.handles, _WPORG_ADAPTER),
-    **dict.fromkeys(_WEBPAGE_ADAPTER.handles, _WEBPAGE_ADAPTER),
-    **dict.fromkeys(_REST_ADAPTER.handles, _REST_ADAPTER),
-}
+@worker_init.connect
+def _on_worker_init(**kwargs) -> None:  # type: ignore[misc]
+    """Initialize AdapterRegistry in the Celery worker process on startup."""
+    import asyncio
+
+    registry = asyncio.run(build_registry(get_worker_sessionmaker()))
+    init_registry(registry)
 
 
 def resolve_adapter(source_type: str) -> SourceAdapter:
@@ -84,7 +79,7 @@ def resolve_adapter(source_type: str) -> SourceAdapter:
     Raises:
         KeyError: If no adapter handles the source type.
     """
-    return _ADAPTERS[source_type]
+    return get_registry().get(source_type)  # type: ignore[return-value]
 
 
 def content_hash(text: str) -> str:

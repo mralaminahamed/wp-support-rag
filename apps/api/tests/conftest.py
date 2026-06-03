@@ -19,6 +19,7 @@ import pytest
 import vcr
 from app.db.engine import get_sessionmaker
 from app.db.models import Plugin
+from app.ingestion.adapter_registry import AdapterRegistry, build_registry, init_registry
 from sqlalchemy import delete, or_, text
 
 CASSETTE_DIR = Path(__file__).parent / "cassettes"
@@ -169,6 +170,35 @@ def _fresh_pooled_clients() -> Iterator[None]:
     yield
     for cached in (get_engine, get_sessionmaker, get_redis):
         cached.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _ensure_registry() -> None:
+    """Initialise the AdapterRegistry singleton for tests that call add_source().
+
+    Tests that exercise add_source() or the ingestion pipeline outside the FastAPI
+    lifespan need the registry ready. We install a minimal stub so built-in source
+    types are recognised without hitting the database.
+    """
+    import app.ingestion.adapter_registry as _ar
+
+    # Only install the stub when the registry is not already set (e.g. by a
+    # test that exercises build_registry itself and resets the singleton).
+    if _ar._registry is None:
+        from app.ingestion.adapters.github import GitHubAdapter
+        from app.ingestion.adapters.rest_endpoint import RestEndpointAdapter
+        from app.ingestion.adapters.webpage import WebpageAdapter
+        from app.ingestion.adapters.wporg import WporgAdapter
+
+        _gh = GitHubAdapter()
+        _wp = WporgAdapter()
+        _wg = WebpageAdapter()
+        _re = RestEndpointAdapter()
+        type_map: dict[str, Any] = {}
+        for adapter in (_gh, _wp, _wg, _re):
+            for handle in adapter.handles:
+                type_map[handle] = adapter
+        init_registry(AdapterRegistry(type_map=type_map, type_info=[]))
 
 
 async def database_available() -> bool:

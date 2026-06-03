@@ -30,6 +30,7 @@ from app.auth.bootstrap import maybe_bootstrap_admin
 from app.config import get_settings
 from app.db.engine import dispose_engine, get_sessionmaker
 from app.db.redis import close_redis, get_redis
+from app.ingestion.adapter_registry import build_registry, init_registry
 from app.observability.logging import CorrelationIdMiddleware, configure_logging
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     async with get_sessionmaker()() as session:
         await maybe_bootstrap_admin(session, settings)
+    registry = await build_registry(app.state.sessionmaker)
+    init_registry(registry)
     try:
         yield
     finally:

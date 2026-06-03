@@ -64,8 +64,8 @@ services:
 
   app:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
     environment:
       <<: *app-env
     command:
@@ -90,8 +90,8 @@ services:
 
   worker:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
     environment:
       <<: *app-env
     command:
@@ -106,8 +106,8 @@ services:
 
   beat:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
     environment:
       <<: *app-env
     # Beat persists its schedule DB; write it to a writable path since the

@@ -24,6 +24,7 @@ from app.api.schemas import (
     CreateUserRequest,
     InviteRequest,
     InviteResponse,
+    InviteSummary,
     PatchRoleRequest,
     PatchUserRequest,
     RoleSummary,
@@ -33,7 +34,7 @@ from app.auth.password import hash_password
 from app.auth.permissions import resolve_permissions
 from app.config import Settings
 from app.db.engine import get_session
-from app.db.models import InviteToken, Role, RolePermission, User, UserRole
+from app.db.models import InviteToken, Role, RolePermission, SystemSetting, User, UserRole
 from app.email import send_invite
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,12 @@ router = APIRouter(prefix="/api/v1/admin", tags=["users"])
 # ---------------------------------------------------------------------------
 # Internal helpers (module-level so tests can patch them)
 # ---------------------------------------------------------------------------
+
+async def _resolve_admin_url(session: AsyncSession, settings: Settings) -> str | None:
+    """Return admin_url: DB system_settings first, env var fallback."""
+    row = await session.scalar(select(SystemSetting).where(SystemSetting.key == "admin_url"))
+    return (row.value if row else None) or settings.admin_url or None
+
 
 def _effective_permissions(user: User) -> list[str]:
     role_perm_lists = [[rp.permission for rp in role.permissions] for role in user.roles]
@@ -128,6 +135,37 @@ async def create_user(
     return _user_response(user)
 
 
+@router.get("/users/invites", response_model=list[InviteSummary])
+async def list_invites(
+    _: object = Depends(require_permission("users:invite")),
+    session: AsyncSession = Depends(get_session),
+) -> list[InviteSummary]:
+    """List all invite tokens with derived status."""
+    rows = await session.execute(
+        select(InviteToken, Role.name.label("role_name"))
+        .outerjoin(Role, Role.id == InviteToken.role_id)
+        .order_by(InviteToken.expires_at.desc())
+    )
+    now = datetime.now(timezone.utc)
+    result = []
+    for invite, role_name in rows:
+        if invite.used_at is not None:
+            st = "accepted"
+        elif invite.expires_at < now:
+            st = "expired"
+        else:
+            st = "pending"
+        result.append(InviteSummary(
+            id=str(invite.id),
+            email=invite.email,
+            role_name=role_name,
+            status=st,
+            expires_at=invite.expires_at.isoformat(),
+            used_at=invite.used_at.isoformat() if invite.used_at else None,
+        ))
+    return result
+
+
 @router.get("/users/{user_id}", response_model=AuthUserResponse)
 async def get_user(
     user_id: uuid.UUID,
@@ -203,9 +241,8 @@ async def invite_user(
     )
     session.add(invite)
     await session.commit()
-    invite_url: str | None = None
-    if settings.admin_url:
-        invite_url = f"{settings.admin_url.rstrip('/')}/accept-invite?token={raw}"
+    base = await _resolve_admin_url(session, settings)
+    invite_url = f"{base.rstrip('/')}/accept-invite?token={raw}" if base else None
 
     if invite_url:
         try:
@@ -213,6 +250,40 @@ async def invite_user(
         except Exception:
             logger.exception("failed to send invite email to %s", payload.email)
 
+    return InviteResponse(token=raw, invite_url=invite_url)
+
+
+# ---------------------------------------------------------------------------
+# Invite regenerate endpoint
+# ---------------------------------------------------------------------------
+
+@router.post("/users/invites/{invite_id}/regenerate", response_model=InviteResponse)
+async def regenerate_invite(
+    invite_id: uuid.UUID,
+    _: object = Depends(require_permission("users:invite")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings_dep),
+) -> InviteResponse:
+    """Replace an existing invite with a fresh 48-hour token."""
+    result = await session.execute(select(InviteToken).where(InviteToken.id == invite_id))
+    old = result.scalar_one_or_none()
+    if old is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="invite not found")
+    email = old.email
+    role_id = old.role_id
+    await session.delete(old)
+    raw = str(uuid.uuid4())
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    new_invite = InviteToken(
+        email=email,
+        token_hash=token_hash,
+        role_id=role_id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+    )
+    session.add(new_invite)
+    await session.commit()
+    base = await _resolve_admin_url(session, settings)
+    invite_url = f"{base.rstrip('/')}/accept-invite?token={raw}" if base else None
     return InviteResponse(token=raw, invite_url=invite_url)
 
 

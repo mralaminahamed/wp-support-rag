@@ -128,20 +128,24 @@ function SourceTableRow({
         {s.last_ingested_at ? relativeTime(s.last_ingested_at) : "never"}
       </td>
 
-      {/* Chunks */}
+      {/* Chunks — live DB count */}
       <td className="pr-3 text-[12px] text-muted-foreground">
-        {s.run_chunks !== null ? (
-          <Badge variant={s.run_chunks > 0 ? "accent" : "secondary"} className="text-[10px]">
-            {s.run_chunks.toLocaleString()}
-          </Badge>
+        <Badge variant={s.chunk_count > 0 ? "accent" : "secondary"} className="text-[10px]">
+          {s.chunk_count.toLocaleString()}
+        </Badge>
+      </td>
+
+      {/* Last run — chunks / docs from most recent ingest */}
+      <td className="pr-3 text-[12px] text-muted-foreground whitespace-nowrap">
+        {s.run_chunks !== null || s.run_docs !== null ? (
+          <span>
+            {s.run_chunks !== null ? s.run_chunks.toLocaleString() : "—"} chunks
+            {" / "}
+            {s.run_docs !== null ? s.run_docs.toLocaleString() : "—"} docs
+          </span>
         ) : (
           <span>—</span>
         )}
-      </td>
-
-      {/* Docs */}
-      <td className="pr-3 text-[12px] text-muted-foreground">
-        {s.run_docs !== null ? s.run_docs.toLocaleString() : "—"}
       </td>
 
       {/* Actions */}
@@ -309,7 +313,7 @@ export function SourcesRow({ slug, colSpan }: { slug: string; colSpan: number })
                 <th className="py-2 pr-3 font-medium">Status</th>
                 <th className="py-2 pr-3 font-medium">Last ingested</th>
                 <th className="py-2 pr-3 font-medium">Chunks</th>
-                <th className="py-2 pr-3 font-medium">Docs</th>
+                <th className="py-2 pr-3 font-medium">Last run</th>
                 <th className="py-2 pr-3 text-right font-medium">Actions</th>
               </tr>
             </thead>

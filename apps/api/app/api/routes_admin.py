@@ -39,7 +39,7 @@ from app.api.schemas import (
 )
 from app.config import EmbeddingProvider, ProviderName, Settings
 from app.db.engine import get_session
-from app.db.models import Chunk, Feedback, IngestionRun, Plugin, Query, Source, ThreadMessage
+from app.db.models import Chunk, Document, Feedback, IngestionRun, Plugin, Query, Source, ThreadMessage
 from app.ingestion.registry import (
     PluginSpec,
     SourceSpec,
@@ -532,6 +532,7 @@ async def list_plugin_sources(
     sources = await list_sources(session, plugin.id)
 
     last_run_map: dict[object, IngestionRun | None] = {}
+    chunk_count_map: dict[object, int] = {}
     if sources:
         source_ids = [s.id for s in sources]
         # DISTINCT ON (source_id) ordered by started_at DESC — most recent run per source
@@ -554,6 +555,15 @@ async def list_plugin_sources(
         for ingestion_run in run_rows.scalars():
             last_run_map[ingestion_run.source_id] = ingestion_run
 
+        # Chunk counts per source — join through documents (Chunk has no source_id FK)
+        chunk_rows = await session.execute(
+            select(Document.source_id, func.count(Chunk.id).label("cnt"))
+            .join(Chunk, Chunk.document_id == Document.id)
+            .where(Document.source_id.in_(source_ids))
+            .group_by(Document.source_id)
+        )
+        chunk_count_map = {row.source_id: row.cnt for row in chunk_rows}
+
     summaries: list[SourceSummary] = []
     for source in sources:
         run = last_run_map.get(source.id)
@@ -565,6 +575,7 @@ async def list_plugin_sources(
                 last_ingested_at=source.last_ingested_at.isoformat()
                 if source.last_ingested_at
                 else None,
+                chunk_count=chunk_count_map.get(source.id, 0),
                 run_status=run.status if run else None,
                 run_chunks=run.chunks_created if run else None,
                 run_docs=run.documents_processed if run else None,

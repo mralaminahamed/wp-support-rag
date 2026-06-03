@@ -1,8 +1,8 @@
 """Playground conversation-thread endpoints.
 
 Authenticated routes for creating, listing, and deleting threads plus
-appending and reading their messages. Each thread is scoped to the
-authenticated user; one user cannot access another's threads.
+appending and reading their messages. Admins with threads:read_all see every
+user's threads; others see only their own.
 
 Author: Al Amin Ahamed.
 """
@@ -24,18 +24,19 @@ from app.api.schemas import (
 )
 from app.auth.jwt import UserClaims
 from app.db.engine import get_session
-from app.db.models import ConversationThread, ThreadMessage
+from app.db.models import ConversationThread, ThreadMessage, User
 
 router = APIRouter(prefix="/api/v1/threads", tags=["threads"])
 
 
-def _thread_to_summary(t: ConversationThread) -> ThreadSummary:
+def _thread_to_summary(t: ConversationThread, owner_email: str | None = None) -> ThreadSummary:
     return ThreadSummary(
         id=t.id,
         title=t.title,
         plugin_slug=t.plugin_slug,
         created_at=t.created_at.isoformat(),
         updated_at=t.updated_at.isoformat(),
+        owner_email=owner_email,
     )
 
 
@@ -51,16 +52,16 @@ def _message_to_item(m: ThreadMessage) -> ThreadMessageItem:
 
 
 async def _get_thread_or_404(
-    session: AsyncSession, thread_id: uuid.UUID, user_id: uuid.UUID
+    session: AsyncSession,
+    thread_id: uuid.UUID,
+    user_id: uuid.UUID,
+    *,
+    is_admin: bool = False,
 ) -> ConversationThread:
-    thread = (
-        await session.execute(
-            select(ConversationThread).where(
-                ConversationThread.id == thread_id,
-                ConversationThread.user_id == user_id,
-            )
-        )
-    ).scalar_one_or_none()
+    q = select(ConversationThread).where(ConversationThread.id == thread_id)
+    if not is_admin:
+        q = q.where(ConversationThread.user_id == user_id)
+    thread = (await session.execute(q)).scalar_one_or_none()
     if thread is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="thread not found")
     return thread
@@ -71,7 +72,20 @@ async def list_threads(
     claims: UserClaims = Depends(require_any_admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[ThreadSummary]:
-    """Return the authenticated user's threads, most-recently-active first."""
+    """Return threads: all (with owner_email) for admins, own only for others."""
+    is_admin = "threads:read_all" in claims.permissions
+
+    if is_admin:
+        rows = (
+            await session.execute(
+                select(ConversationThread, User.email.label("owner_email"))
+                .join(User, User.id == ConversationThread.user_id)
+                .order_by(ConversationThread.updated_at.desc())
+                .limit(500)
+            )
+        ).all()
+        return [_thread_to_summary(t, email) for t, email in rows]
+
     rows = (
         await session.execute(
             select(ConversationThread)
@@ -107,8 +121,9 @@ async def delete_thread(
     claims: UserClaims = Depends(require_any_admin),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    """Delete a thread and all its messages."""
-    thread = await _get_thread_or_404(session, thread_id, claims.sub)
+    """Delete a thread. Admins can delete any thread; others only their own."""
+    is_admin = "threads:read_all" in claims.permissions
+    thread = await _get_thread_or_404(session, thread_id, claims.sub, is_admin=is_admin)
     await session.delete(thread)
     await session.commit()
 
@@ -120,7 +135,8 @@ async def get_thread_messages(
     session: AsyncSession = Depends(get_session),
 ) -> list[ThreadMessageItem]:
     """Return all messages in a thread in chronological order."""
-    await _get_thread_or_404(session, thread_id, claims.sub)
+    is_admin = "threads:read_all" in claims.permissions
+    await _get_thread_or_404(session, thread_id, claims.sub, is_admin=is_admin)
     rows = (
         await session.execute(
             select(ThreadMessage)
@@ -141,7 +157,8 @@ async def append_messages(
     """Append one or more messages to a thread and bump updated_at."""
     from sqlalchemy import text as sqla_text
 
-    thread = await _get_thread_or_404(session, thread_id, claims.sub)
+    is_admin = "threads:read_all" in claims.permissions
+    thread = await _get_thread_or_404(session, thread_id, claims.sub, is_admin=is_admin)
     created: list[ThreadMessage] = []
     for item in body.messages:
         msg = ThreadMessage(

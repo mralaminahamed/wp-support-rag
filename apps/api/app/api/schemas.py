@@ -165,6 +165,7 @@ class SourceSummary(BaseModel):
         source_type: The typed source kind.
         enabled: Whether the source is enabled.
         last_ingested_at: ISO timestamp of the last ingestion, if any.
+        chunk_count: Total chunks currently in the DB for this source.
         run_status: Status of the most recent ingestion run, if any.
         run_chunks: Chunks created in the most recent run, if any.
         run_docs: Documents processed in the most recent run, if any.
@@ -176,6 +177,7 @@ class SourceSummary(BaseModel):
     source_type: str
     enabled: bool
     last_ingested_at: str | None
+    chunk_count: int = 0
     run_status: str | None = None
     run_chunks: int | None = None
     run_docs: int | None = None
@@ -509,6 +511,26 @@ class InviteResponse(BaseModel):
     invite_url: str | None = None
 
 
+class InviteSummary(BaseModel):
+    """An invite token for admin listing.
+
+    Attributes:
+        id: Invite UUID.
+        email: Invitee email.
+        role_name: Role name assigned on acceptance, or None.
+        status: pending | expired | accepted.
+        expires_at: ISO expiry timestamp.
+        used_at: ISO acceptance timestamp, or None.
+    """
+
+    id: str
+    email: str
+    role_name: str | None
+    status: Literal["pending", "expired", "accepted"]
+    expires_at: str
+    used_at: str | None
+
+
 class RoleSummary(BaseModel):
     """A role with its permission list for admin listing.
 
@@ -662,6 +684,7 @@ class ThreadSummary(BaseModel):
     plugin_slug: str | None
     created_at: str
     updated_at: str
+    owner_email: str | None = None
 
 
 class ThreadMessageItem(BaseModel):

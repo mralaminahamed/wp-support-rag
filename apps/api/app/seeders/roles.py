@@ -18,7 +18,7 @@ from app.db.models import Role, RolePermission
 from app.seeders.base import Seeder
 
 _EDITOR_ROLE = {
-    "name": "editor",
+    "name": "support_agent",
     "description": "Manage plugins and trigger ingestion. No settings, metrics, or user access.",
     "permissions": ["plugins:read", "plugins:write", "ingestion:trigger"],
 }

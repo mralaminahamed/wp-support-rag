@@ -35,11 +35,21 @@ export interface SourceSummary {
   source_type: string;
   enabled: boolean;
   last_ingested_at: string | null;
+  chunk_count: number;
   run_status: string | null;
   run_chunks: number | null;
   run_docs: number | null;
   run_error: string | null;
   run_finished_at: string | null;
+}
+
+export interface InviteSummary {
+  id: string;
+  email: string;
+  role_name: string | null;
+  status: "pending" | "expired" | "accepted";
+  expires_at: string;
+  used_at: string | null;
 }
 
 export interface PluginRegistration {
@@ -246,6 +256,7 @@ export interface ThreadSummary {
   plugin_slug: string | null;
   created_at: string;
   updated_at: string;
+  owner_email?: string | null;
 }
 
 export interface ThreadMessage {

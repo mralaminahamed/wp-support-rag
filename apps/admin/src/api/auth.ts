@@ -9,6 +9,7 @@ import type {
   ForgotPasswordRequest,
   InviteRequest,
   InviteResponse,
+  InviteSummary,
   LoginRequest,
   PatchRoleRequest,
   PatchUserRequest,
@@ -99,4 +100,15 @@ export async function patchRole(id: string, payload: PatchRoleRequest): Promise<
 
 export async function deleteRole(id: string): Promise<void> {
   await apiClient.delete(`/api/v1/admin/roles/${id}`);
+}
+
+// Invite management
+export async function listInvites(): Promise<InviteSummary[]> {
+  const res = await apiClient.get<InviteSummary[]>("/api/v1/admin/users/invites");
+  return res.data;
+}
+
+export async function regenerateInvite(id: string): Promise<InviteResponse> {
+  const res = await apiClient.post<InviteResponse>(`/api/v1/admin/users/invites/${id}/regenerate`);
+  return res.data;
 }

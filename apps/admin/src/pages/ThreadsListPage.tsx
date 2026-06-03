@@ -31,6 +31,9 @@ function ThreadRow({ thread, onDelete }: { thread: ThreadSummary; onDelete: () =
         <div className="flex-1 min-w-0">
           <p className="truncate text-sm font-medium leading-tight">{thread.title}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
+            {thread.owner_email && (
+              <span className="font-mono mr-2 text-muted-foreground/70">{thread.owner_email}</span>
+            )}
             {thread.plugin_slug && (
               <span className="font-mono mr-2 text-primary/70">{thread.plugin_slug}</span>
             )}

@@ -24,7 +24,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # config.py lives at apps/api/app/config.py → parents[3] is the project root
 _ROOT_ENV = Path(__file__).parents[3] / ".env"
 
-ProviderName = Literal["anthropic", "openai", "gemini", "ollama"]
+ProviderName = Literal["anthropic", "openai", "gemini", "ollama", "opencode_zen"]
 """The set of generation providers the factory can resolve (architecture §2.5)."""
 
 DimensionalityMode = Literal["halfvec_3072", "vector_1536"]
@@ -137,6 +137,7 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
+    opencode_zen_api_key: SecretStr | None = None
     ollama_base_url: str = "http://localhost:11434"
     default_provider: ProviderName = "anthropic"
 
@@ -144,6 +145,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     openai_model: str = "gpt-4o-mini"
     gemini_model: str = "gemini-2.0-flash"
+    opencode_zen_model: str = "opencode/claude-sonnet-4-6"
     ollama_model: str = "llama3.2"
     llm_timeout_seconds: float = Field(default=60.0, gt=0.0)
     llm_max_retries: int = Field(default=3, ge=0)

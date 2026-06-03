@@ -14,6 +14,7 @@ from app.llm.base import LLMProvider
 from app.llm.gemini import GeminiProvider
 from app.llm.ollama import OllamaProvider
 from app.llm.openai import OpenAIProvider
+from app.llm.opencode_zen import OpenCodeZenProvider
 
 
 def build_provider(settings: Settings, provider_name: ProviderName | None = None) -> LLMProvider:
@@ -36,6 +37,8 @@ def build_provider(settings: Settings, provider_name: ProviderName | None = None
         return OpenAIProvider(settings)
     if name == "gemini":
         return GeminiProvider(settings)
+    if name == "opencode_zen":
+        return OpenCodeZenProvider(settings)
     if name == "ollama":
         return OllamaProvider(settings)
     raise ValueError(f"unknown provider: {name}")
@@ -64,6 +67,8 @@ def active_model(
         return settings.openai_model
     if name == "gemini":
         return settings.gemini_model
+    if name == "opencode_zen":
+        return settings.opencode_zen_model
     if name == "ollama":
         return settings.ollama_model
     raise ValueError(f"unknown provider: {name}")

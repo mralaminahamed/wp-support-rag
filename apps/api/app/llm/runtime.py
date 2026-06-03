@@ -68,6 +68,8 @@ def env_model(settings: Settings, provider: ProviderName) -> str:
         return settings.openai_model
     if provider == "gemini":
         return settings.gemini_model
+    if provider == "opencode_zen":
+        return settings.opencode_zen_model
     if provider == "ollama":
         return settings.ollama_model
     raise ValueError(f"unknown provider: {provider}")
@@ -89,6 +91,8 @@ def is_configured(settings: Settings, provider: ProviderName) -> bool:
         return settings.openai_api_key is not None
     if provider == "gemini":
         return settings.gemini_api_key is not None
+    if provider == "opencode_zen":
+        return settings.opencode_zen_api_key is not None
     if provider == "ollama":
         return bool(settings.ollama_base_url)
     return False
@@ -107,11 +111,13 @@ def provider_metadata(provider: ProviderName) -> tuple[str, list[str]]:
     from app.llm.gemini import GeminiProvider  # noqa: PLC0415
     from app.llm.ollama import OllamaProvider  # noqa: PLC0415
     from app.llm.openai import OpenAIProvider  # noqa: PLC0415
+    from app.llm.opencode_zen import OpenCodeZenProvider  # noqa: PLC0415
 
     _MAP = {
         "anthropic": AnthropicProvider,
         "openai": OpenAIProvider,
         "gemini": GeminiProvider,
+        "opencode_zen": OpenCodeZenProvider,
         "ollama": OllamaProvider,
     }
     cls = _MAP.get(provider)

@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import AsyncIterator
+from datetime import datetime
 from html.parser import HTMLParser
 from typing import Any, ClassVar
 
@@ -22,6 +23,19 @@ from app.ingestion.adapters._http import build_client, request_with_backoff
 from app.ingestion.adapters.base import RawDocument, SourceContext, SourceFetchError
 
 _TOPIC_HREF = re.compile(r'href="(https://wordpress\.org/support/topic/[^"#?]+)/?"')
+_WPORG_DATE_RE = re.compile(r"(\w+ \d+, \d{4}) at (\d+:\d+ (?:am|pm))", re.IGNORECASE)
+
+
+def _parse_wporg_date(title: str) -> str | None:
+    """Parse WP.org date title attr ('May 17, 2026 at 6:11 am') → ISO string."""
+    m = _WPORG_DATE_RE.search(title.strip())
+    if not m:
+        return None
+    try:
+        dt = datetime.strptime(f"{m.group(1)} {m.group(2).upper()}", "%B %d, %Y %I:%M %p")
+        return dt.isoformat()
+    except ValueError:
+        return None
 
 
 class WporgAdapter:
@@ -203,6 +217,7 @@ class _ThreadParser(HTMLParser):
         self._in_title = False
         self._in_author = False
         self._in_reply_count = False
+        self._in_date_div = False      # inside bbp-*-post-date div
         self._capture_depth = 0
         self._parts: list[str] = []
         self._pending_author: list[str] = []
@@ -234,11 +249,16 @@ class _ThreadParser(HTMLParser):
             self._in_reply_count = True
             self._parts = []
 
-        elif tag == "time" and attr.get("datetime"):
-            # Capture ISO datetime from <time datetime="..."> within posts
-            dt = attr["datetime"]
-            if dt:
-                self.dates.append(dt)
+        elif "bbp-reply-post-date" in classes or "bbp-topic-post-date" in classes:
+            self._in_date_div = True
+
+        elif self._in_date_div and tag == "a":
+            # WP.org bbPress stores human-readable date in <a title="May 17, 2026 at 6:11 am">
+            title_attr = attr.get("title", "")
+            if title_attr:
+                iso = _parse_wporg_date(title_attr)
+                if iso:
+                    self.dates.append(iso)
 
     def handle_endtag(self, tag: str) -> None:
         if self._in_title and tag in {"h1", "title"}:
@@ -248,6 +268,9 @@ class _ThreadParser(HTMLParser):
 
         elif self._in_author and tag in {"a", "span", "div"}:
             self._in_author = False
+
+        elif self._in_date_div and tag == "div":
+            self._in_date_div = False
 
         elif self._in_reply_count and tag in {"span", "div", "li"}:
             raw = "".join(self._parts).strip()

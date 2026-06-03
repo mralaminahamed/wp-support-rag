@@ -653,6 +653,7 @@ class InviteToken(Base):
         id: Surrogate primary key.
         email: Invitee email address.
         token_hash: SHA-256 hex digest of the raw token UUID.
+        raw_token: The plaintext token UUID (stored to enable copy-link without regeneration).
         role_id: Role assigned to the new account on acceptance.
         expires_at: Expiry timestamp (48 hours from creation).
         used_at: Set when the invite is accepted; null means unused.
@@ -663,6 +664,7 @@ class InviteToken(Base):
     id: Mapped[uuid.UUID] = _uuid_pk()
     email: Mapped[str] = mapped_column(Text, nullable=False)
     token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    raw_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     role_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
     )

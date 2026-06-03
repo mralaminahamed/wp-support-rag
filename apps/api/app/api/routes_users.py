@@ -247,6 +247,7 @@ async def invite_user(
     invite = InviteToken(
         email=payload.email,
         token_hash=token_hash,
+        raw_token=raw,
         role_id=payload.role_id,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
     )
@@ -265,6 +266,51 @@ async def invite_user(
 
 
 # ---------------------------------------------------------------------------
+# Invite copy-link endpoint (returns existing URL without regenerating)
+# ---------------------------------------------------------------------------
+
+@router.get("/users/invites/{invite_id}/link", response_model=InviteResponse)
+async def get_invite_link(
+    invite_id: uuid.UUID,
+    _: object = Depends(require_permission("users:invite")),
+    session: AsyncSession = Depends(get_session),
+    settings: Settings = Depends(get_settings_dep),
+) -> InviteResponse:
+    """Return the existing invite URL without generating a new token.
+
+    Falls back to silent regeneration (no email) for older invites that
+    predate the raw_token column.
+    """
+    result = await session.execute(select(InviteToken).where(InviteToken.id == invite_id))
+    invite = result.scalar_one_or_none()
+    if invite is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="invite not found")
+
+    if invite.raw_token:
+        base = await _resolve_admin_url(session, settings)
+        invite_url = f"{base.rstrip('/')}/accept-invite?token={invite.raw_token}" if base else None
+        return InviteResponse(token=invite.raw_token, invite_url=invite_url)
+
+    # Legacy invite without stored raw_token — silently regenerate, no email.
+    email = invite.email
+    role_id = invite.role_id
+    await session.delete(invite)
+    raw = str(uuid.uuid4())
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    session.add(InviteToken(
+        email=email,
+        token_hash=token_hash,
+        raw_token=raw,
+        role_id=role_id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+    ))
+    await session.commit()
+    base = await _resolve_admin_url(session, settings)
+    invite_url = f"{base.rstrip('/')}/accept-invite?token={raw}" if base else None
+    return InviteResponse(token=raw, invite_url=invite_url)
+
+
+# ---------------------------------------------------------------------------
 # Invite regenerate endpoint
 # ---------------------------------------------------------------------------
 
@@ -275,7 +321,7 @@ async def regenerate_invite(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings_dep),
 ) -> InviteResponse:
-    """Replace an existing invite with a fresh 48-hour token."""
+    """Replace an existing invite with a fresh 48-hour token and resend the email."""
     result = await session.execute(select(InviteToken).where(InviteToken.id == invite_id))
     old = result.scalar_one_or_none()
     if old is None:
@@ -288,6 +334,7 @@ async def regenerate_invite(
     new_invite = InviteToken(
         email=email,
         token_hash=token_hash,
+        raw_token=raw,
         role_id=role_id,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
     )
@@ -295,6 +342,13 @@ async def regenerate_invite(
     await session.commit()
     base = await _resolve_admin_url(session, settings)
     invite_url = f"{base.rstrip('/')}/accept-invite?token={raw}" if base else None
+
+    if invite_url:
+        try:
+            await send_invite(settings, to=email, invite_url=invite_url)
+        except Exception:
+            logger.exception("failed to resend invite email to %s", email)
+
     return InviteResponse(token=raw, invite_url=invite_url)
 
 

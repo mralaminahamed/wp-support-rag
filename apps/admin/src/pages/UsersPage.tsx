@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createUser,
   deleteUser,
+  getInviteLink,
   inviteUser,
   listInvites,
   listRoles,
@@ -106,6 +107,22 @@ export function UsersPage() {
     onError: (e) => toast.err(extractErrorMessage(e)),
   });
 
+  const copyInviteLink = useMutation({
+    mutationFn: (id: string) => getInviteLink(id),
+    onSuccess: async (data) => {
+      const url =
+        data.invite_url ??
+        `${window.location.origin}/accept-invite?token=${data.token}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.ok("Invite link copied to clipboard.");
+      } catch {
+        toast.ok(`Invite link: ${url}`);
+      }
+    },
+    onError: (e) => toast.err(extractErrorMessage(e)),
+  });
+
   const regenInvite = useMutation({
     mutationFn: (id: string) => regenerateInvite(id),
     onSuccess: async (data) => {
@@ -115,9 +132,9 @@ export function UsersPage() {
         `${window.location.origin}/accept-invite?token=${data.token}`;
       try {
         await navigator.clipboard.writeText(url);
-        toast.ok("New invite link copied to clipboard.");
+        toast.ok("New invite sent and link copied.");
       } catch {
-        toast.ok(`Invite link: ${url}`);
+        toast.ok("Invite resent.");
       }
     },
     onError: (e) => toast.err(extractErrorMessage(e)),
@@ -388,10 +405,10 @@ export function UsersPage() {
                     <InviteRow
                       key={inv.id}
                       invite={inv}
+                      onCopyLink={() => copyInviteLink.mutate(inv.id)}
                       onResend={() => regenInvite.mutate(inv.id)}
-                      loading={
-                        regenInvite.isPending && regenInvite.variables === inv.id
-                      }
+                      copyLoading={copyInviteLink.isPending && copyInviteLink.variables === inv.id}
+                      resendLoading={regenInvite.isPending && regenInvite.variables === inv.id}
                     />
                   ))}
                 </TableBody>
@@ -431,12 +448,16 @@ export function UsersPage() {
 
 function InviteRow({
   invite,
+  onCopyLink,
   onResend,
-  loading,
+  copyLoading,
+  resendLoading,
 }: {
   invite: InviteSummary;
+  onCopyLink: () => void;
   onResend: () => void;
-  loading: boolean;
+  copyLoading: boolean;
+  resendLoading: boolean;
 }) {
   return (
     <TableRow>
@@ -463,17 +484,37 @@ function InviteRow({
       </TableCell>
       <TableCell className="text-right">
         {invite.status !== "accepted" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onResend}
-            disabled={loading}
-            title="Regenerate and copy invite link"
-            className="h-7 gap-1.5 px-2 text-xs"
-          >
-            <i className="ti ti-send text-[12px]" />
-            Resend
-          </Button>
+          <div className="inline-flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCopyLink}
+              disabled={copyLoading || resendLoading}
+              title="Copy invite link (no new token)"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            >
+              {copyLoading ? (
+                <i className="ti ti-loader-2 animate-spin text-[12px]" />
+              ) : (
+                <i className="ti ti-copy text-[12px]" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onResend}
+              disabled={resendLoading || copyLoading}
+              title="Regenerate token and resend invitation email"
+              className="h-7 gap-1 px-2 text-xs"
+            >
+              {resendLoading ? (
+                <i className="ti ti-loader-2 animate-spin text-[12px]" />
+              ) : (
+                <i className="ti ti-send text-[12px]" />
+              )}
+              Resend
+            </Button>
+          </div>
         )}
       </TableCell>
     </TableRow>

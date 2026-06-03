@@ -108,6 +108,11 @@ export async function listInvites(): Promise<InviteSummary[]> {
   return res.data;
 }
 
+export async function getInviteLink(id: string): Promise<InviteResponse> {
+  const res = await apiClient.get<InviteResponse>(`/api/v1/admin/users/invites/${id}/link`);
+  return res.data;
+}
+
 export async function regenerateInvite(id: string): Promise<InviteResponse> {
   const res = await apiClient.post<InviteResponse>(`/api/v1/admin/users/invites/${id}/regenerate`);
   return res.data;

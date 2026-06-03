@@ -1,6 +1,7 @@
 // Plugins: search, sort, expand sources, ingest per plugin / all. Author: Al Amin Ahamed.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { deletePlugin, ingestAll, ingestPlugin, listPlugins } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
@@ -183,7 +184,12 @@ export function PluginsPage() {
                         <i className={`ti ${open ? "ti-chevron-down" : "ti-chevron-right"} text-sm text-muted-foreground`} />
                       </TableCell>
                       <TableCell className="font-mono text-[13px]">{p.slug}</TableCell>
-                      <TableCell>{p.name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <PluginIcon slug={p.slug} wporgSlug={p.wporg_slug} />
+                          {p.name}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant={p.status === "active" ? "success" : "secondary"}>
                           {p.status}
@@ -310,6 +316,38 @@ function SortHeader({
         </span>
       </button>
     </TableHead>
+  );
+}
+
+const _PALETTE = ["#6366f1","#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899"];
+function _slugColor(slug: string): string {
+  let h = 0;
+  for (const c of slug) h = (h * 31 + c.charCodeAt(0)) & 0xffff;
+  return _PALETTE[h % _PALETTE.length]!;
+}
+
+function PluginIcon({ slug, wporgSlug }: { slug: string; wporgSlug: string | null }) {
+  const [err, setErr] = useState(false);
+  const letter = slug[0]?.toUpperCase() ?? "?";
+  if (!wporgSlug || err) {
+    return (
+      <span
+        className="inline-flex shrink-0 items-center justify-center rounded text-[11px] font-bold text-white"
+        style={{ width: 28, height: 28, background: _slugColor(slug) }}
+      >
+        {letter}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={`https://ps.w.org/${wporgSlug}/assets/icon-128x128.png`}
+      width={28}
+      height={28}
+      alt={slug}
+      className={cn("shrink-0 rounded object-cover")}
+      onError={() => setErr(true)}
+    />
   );
 }
 

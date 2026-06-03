@@ -117,6 +117,7 @@ async def _upsert_document(
         )
     ).scalar_one_or_none()
 
+    meta = raw.metadata or None
     if existing is None:
         document = Document(
             source_id=source.id,
@@ -127,16 +128,20 @@ async def _upsert_document(
             content_hash=digest,
             source_url=raw.source_url,
             version=raw.version,
+            meta=meta,
         )
         session.add(document)
         await session.flush()
         return "new", document
     if existing.content_hash == digest:
+        if meta:
+            existing.meta = meta
         return "unchanged", existing
     existing.title = raw.title
     existing.content_hash = digest
     existing.source_url = raw.source_url
     existing.version = raw.version
+    existing.meta = meta
     existing.fetched_at = datetime.now(UTC)
     return "updated", existing
 

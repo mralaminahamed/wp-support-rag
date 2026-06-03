@@ -240,6 +240,7 @@ class Document(Base):
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
     version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     fetched_at: Mapped[datetime] = _created_at()
 
     source: Mapped[Source] = relationship(back_populates="documents")

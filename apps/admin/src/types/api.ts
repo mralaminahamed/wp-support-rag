@@ -288,6 +288,10 @@ export interface TicketSummary {
   plugin_slug: string;
   fetched_at: string;
   chunk_count: number;
+  creator: string | null;
+  reply_count: number | null;
+  participant_count: number | null;
+  last_reply_at: string | null;
 }
 
 export interface TicketReply {

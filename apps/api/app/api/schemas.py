@@ -770,6 +770,10 @@ class TicketSummary(BaseModel):
     plugin_slug: str
     fetched_at: str
     chunk_count: int
+    creator: str | None = None
+    reply_count: int | None = None
+    participant_count: int | None = None
+    last_reply_at: str | None = None
 
 
 class TicketReply(BaseModel):

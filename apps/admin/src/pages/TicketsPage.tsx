@@ -106,15 +106,17 @@ export function TicketsPage() {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Plugin</TableHead>
-                  <TableHead className="text-right">Chunks</TableHead>
-                  <TableHead>Fetched</TableHead>
+                  <TableHead>Creator</TableHead>
+                  <TableHead className="text-right">Replies</TableHead>
+                  <TableHead className="text-right">Participants</TableHead>
+                  <TableHead>Last reply</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={4}
+                      colSpan={6}
                       className="text-center text-sm text-muted-foreground py-8"
                     >
                       {q || pluginFilter !== "all"
@@ -137,11 +139,33 @@ export function TicketsPage() {
                         {t.plugin_slug}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {t.creator ?? <span className="text-xs">—</span>}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
-                      {t.chunk_count}
+                      {t.reply_count != null ? (
+                        <span className="inline-flex items-center gap-1 justify-end">
+                          <i className="ti ti-message-2 text-[11px]" />
+                          {t.reply_count}
+                        </span>
+                      ) : (
+                        <span className="text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm text-muted-foreground">
+                      {t.participant_count != null ? (
+                        <span className="inline-flex items-center gap-1 justify-end">
+                          <i className="ti ti-users text-[11px]" />
+                          {t.participant_count}
+                        </span>
+                      ) : (
+                        <span className="text-xs">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {relativeTime(t.fetched_at)}
+                      {t.last_reply_at
+                        ? relativeTime(t.last_reply_at)
+                        : <span className="text-xs">—</span>}
                     </TableCell>
                   </TableRow>
                 ))}

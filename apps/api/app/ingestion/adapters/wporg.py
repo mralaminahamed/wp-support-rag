@@ -168,6 +168,16 @@ class WporgAdapter:
         reply = parser.posts[1] if len(parser.posts) > 1 else ""
         content = f"<p>{question}</p>" if not reply else f"<p>{question}</p><p>{reply}</p>"
         topic_id = topic_url.rstrip("/").rsplit("/", 1)[-1]
+
+        unique_authors = list(dict.fromkeys(a for a in parser.authors if a))
+        meta: dict[str, Any] = {
+            "resolved": True,
+            "creator": parser.authors[0] if parser.authors else None,
+            "reply_count": parser.reply_count,
+            "participants": unique_authors,
+            "participant_count": len(unique_authors),
+            "last_reply_at": parser.dates[-1] if parser.dates else None,
+        }
         return RawDocument(
             external_id=f"thread-{topic_id}",
             title=parser.title or topic_id,
@@ -175,41 +185,79 @@ class WporgAdapter:
             content=content,
             content_type="html",
             source_url=topic_url,
-            metadata={"resolved": True},
+            metadata=meta,
         )
 
 
 class _ThreadParser(HTMLParser):
-    """Extract a bbPress thread's title, resolution state, and post bodies."""
+    """Extract bbPress thread metadata: title, resolution, posts, authors, dates."""
 
     def __init__(self) -> None:
-        """Initialise the thread parser."""
         super().__init__(convert_charrefs=True)
         self.title: str = ""
         self.resolved: bool = False
         self.posts: list[str] = []
+        self.authors: list[str] = []   # one per post (topic author first)
+        self.dates: list[str] = []     # ISO datetimes, one per post
+        self.reply_count: int = 0      # from the bbPress reply-count element
         self._in_title = False
+        self._in_author = False
+        self._in_reply_count = False
         self._capture_depth = 0
         self._parts: list[str] = []
+        self._pending_author: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        """Detect title elements, resolved markers, and post content blocks."""
         attr = {key: (value or "") for key, value in attrs}
         classes = attr.get("class", "")
+
         if "resolved" in classes:
             self.resolved = True
+
         if tag in {"h1", "title"} and not self.title:
             self._in_title = True
             self._parts = []
+
         elif "bbp-topic-content" in classes or "bbp-reply-content" in classes:
             self._capture_depth = 1
             self._parts = []
+            # flush pending author when a new post body opens
+            if self._pending_author:
+                self.authors.append("".join(self._pending_author).strip())
+                self._pending_author = []
+
+        elif "bbp-author-name" in classes:
+            self._in_author = True
+            self._pending_author = []
+
+        elif "bbp-reply-count" in classes or "reply-count" in classes:
+            self._in_reply_count = True
+            self._parts = []
+
+        elif tag == "time" and attr.get("datetime"):
+            # Capture ISO datetime from <time datetime="..."> within posts
+            dt = attr["datetime"]
+            if dt:
+                self.dates.append(dt)
 
     def handle_endtag(self, tag: str) -> None:
-        """Finalise the title or the current post body."""
         if self._in_title and tag in {"h1", "title"}:
             self.title = "".join(self._parts).strip()
             self._in_title = False
+            self._parts = []
+
+        elif self._in_author and tag in {"a", "span", "div"}:
+            self._in_author = False
+
+        elif self._in_reply_count and tag in {"span", "div", "li"}:
+            raw = "".join(self._parts).strip()
+            try:
+                self.reply_count = int(raw.split()[0])
+            except (ValueError, IndexError):
+                pass
+            self._in_reply_count = False
+            self._parts = []
+
         elif self._capture_depth:
             text = "".join(self._parts).strip()
             if text:
@@ -218,6 +266,7 @@ class _ThreadParser(HTMLParser):
             self._parts = []
 
     def handle_data(self, data: str) -> None:
-        """Capture text into the active title or post body."""
-        if self._in_title or self._capture_depth:
+        if self._in_title or self._capture_depth or self._in_reply_count:
             self._parts.append(data)
+        if self._in_author:
+            self._pending_author.append(data)

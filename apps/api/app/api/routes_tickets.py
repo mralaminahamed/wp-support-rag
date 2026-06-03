@@ -212,6 +212,10 @@ async def list_tickets(
             plugin_slug=plugin_slug,
             fetched_at=doc.fetched_at.isoformat(),
             chunk_count=chunk_count,
+            creator=(doc.meta or {}).get("creator"),
+            reply_count=(doc.meta or {}).get("reply_count"),
+            participant_count=(doc.meta or {}).get("participant_count"),
+            last_reply_at=(doc.meta or {}).get("last_reply_at"),
         )
         for doc, plugin_slug, chunk_count in rows
     ]

@@ -15,10 +15,14 @@ from __future__ import annotations
 
 import re
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, RedisDsn, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# config.py lives at apps/api/app/config.py → parents[3] is the project root
+_ROOT_ENV = Path(__file__).parents[3] / ".env"
 
 ProviderName = Literal["anthropic", "openai", "gemini", "ollama"]
 """The set of generation providers the factory can resolve (architecture §2.5)."""
@@ -114,7 +118,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="WPRAG_",
-        env_file=".env",
+        env_file=str(_ROOT_ENV),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,

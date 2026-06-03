@@ -89,7 +89,7 @@ async def list_threads(
     rows = (
         await session.execute(
             select(ConversationThread)
-            .where(ConversationThread.user_id == claims.sub)
+            .where(ConversationThread.user_id == uuid.UUID(claims.sub))
             .order_by(ConversationThread.updated_at.desc())
             .limit(100)
         )
@@ -105,7 +105,7 @@ async def create_thread(
 ) -> ThreadSummary:
     """Create a new conversation thread owned by the authenticated user."""
     thread = ConversationThread(
-        user_id=claims.sub,
+        user_id=uuid.UUID(claims.sub),
         title=body.title,
         plugin_slug=body.plugin_slug,
     )
@@ -123,7 +123,7 @@ async def delete_thread(
 ) -> None:
     """Delete a thread. Admins can delete any thread; others only their own."""
     is_admin = "threads:read_all" in claims.permissions
-    thread = await _get_thread_or_404(session, thread_id, claims.sub, is_admin=is_admin)
+    thread = await _get_thread_or_404(session, thread_id, uuid.UUID(claims.sub), is_admin=is_admin)
     await session.delete(thread)
     await session.commit()
 
@@ -136,7 +136,7 @@ async def get_thread_messages(
 ) -> list[ThreadMessageItem]:
     """Return all messages in a thread in chronological order."""
     is_admin = "threads:read_all" in claims.permissions
-    await _get_thread_or_404(session, thread_id, claims.sub, is_admin=is_admin)
+    await _get_thread_or_404(session, thread_id, uuid.UUID(claims.sub), is_admin=is_admin)
     rows = (
         await session.execute(
             select(ThreadMessage)
@@ -158,7 +158,7 @@ async def append_messages(
     from sqlalchemy import text as sqla_text
 
     is_admin = "threads:read_all" in claims.permissions
-    thread = await _get_thread_or_404(session, thread_id, claims.sub, is_admin=is_admin)
+    thread = await _get_thread_or_404(session, thread_id, uuid.UUID(claims.sub), is_admin=is_admin)
     created: list[ThreadMessage] = []
     for item in body.messages:
         msg = ThreadMessage(

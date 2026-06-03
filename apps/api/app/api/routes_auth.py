@@ -180,8 +180,21 @@ async def refresh(
     user = await session.get(User, rt.user_id)
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="account inactive")
+
+    # Refresh token rotation: revoke the consumed token, then issue a new one.
+    rt.revoked_at = now
+    await session.commit()
+
     await session.refresh(user)
     _set_access_cookie(response, user, settings)
+
+    new_raw_refresh = await _create_refresh_token(session, user, settings.refresh_token_ttl_seconds)
+    response.set_cookie(
+        "refresh_token",
+        new_raw_refresh,
+        max_age=settings.refresh_token_ttl_seconds,
+        **_cookie_kwargs(settings, path="/api/v1/auth/refresh"),
+    )
     return {"ok": True}
 
 

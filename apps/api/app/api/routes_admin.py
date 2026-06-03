@@ -69,37 +69,6 @@ from app.llm.runtime import (
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
-async def _get_source_or_404(
-    session: AsyncSession, plugin_slug: str, source_type: str
-) -> tuple[Plugin, Source]:
-    """Return (plugin, source) or raise 404.
-
-    Args:
-        session: Database session.
-        plugin_slug: Plugin slug.
-        source_type: Source kind.
-
-    Returns:
-        tuple[Plugin, Source]: The resolved plugin and source rows.
-
-    Raises:
-        HTTPException: 404 if either the plugin or source is not found.
-    """
-    plugin = await get_plugin_by_slug(session, plugin_slug)
-    if plugin is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
-    source = (
-        await session.execute(
-            select(Source).where(
-                Source.plugin_id == plugin.id, Source.source_type == source_type
-            )
-        )
-    ).scalar_one_or_none()
-    if source is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="source not found")
-    return plugin, source
-
-
 async def _get_source_by_id_or_404(
     session: AsyncSession, plugin_slug: str, source_id: uuid.UUID
 ) -> tuple[Plugin, Source]:
@@ -766,8 +735,8 @@ async def trigger_ingest_source(
     run = IngestionRun(source_id=source.id, status="queued")
     session.add(run)
     await session.flush()
-    ingest_source_task.delay(str(source.id), str(run.id))
     await session.commit()
+    ingest_source_task.delay(str(source.id), str(run.id))
     return IngestTriggerResponse(plugin_slug=plugin_slug, enqueued_sources=1)
 
 
@@ -792,18 +761,21 @@ async def trigger_ingest_all(
     plugins = await list_plugins(session)
     by_plugin: list[IngestTriggerResponse] = []
     total = 0
+    pending: list[tuple[str, str]] = []
     for plugin in plugins:
         sources = await list_sources(session, plugin.id, enabled_only=True)
         for source in sources:
             run = IngestionRun(source_id=source.id, status="queued")
             session.add(run)
             await session.flush()
-            ingest_source_task.delay(str(source.id), str(run.id))
+            pending.append((str(source.id), str(run.id)))
         by_plugin.append(
             IngestTriggerResponse(plugin_slug=plugin.slug, enqueued_sources=len(sources))
         )
         total += len(sources)
     await session.commit()
+    for source_id_str, run_id_str in pending:
+        ingest_source_task.delay(source_id_str, run_id_str)
     return IngestAllResponse(plugins=len(plugins), enqueued_sources=total, by_plugin=by_plugin)
 
 
@@ -831,12 +803,15 @@ async def trigger_ingest(
     if plugin is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="plugin not found")
     sources = await list_sources(session, plugin.id, enabled_only=True)
+    pending: list[tuple[str, str]] = []
     for source in sources:
         run = IngestionRun(source_id=source.id, status="queued")
         session.add(run)
         await session.flush()
-        ingest_source_task.delay(str(source.id), str(run.id))
+        pending.append((str(source.id), str(run.id)))
     await session.commit()
+    for source_id_str, run_id_str in pending:
+        ingest_source_task.delay(source_id_str, run_id_str)
     return IngestTriggerResponse(plugin_slug=plugin_slug, enqueued_sources=len(sources))
 
 

@@ -600,8 +600,8 @@ class ResetPasswordRequest(BaseModel):
         password: New plain-text password (min 8 chars).
     """
 
-    token: str
-    password: str = Field(min_length=8)
+    token: str = Field(min_length=1, max_length=256)
+    password: str = Field(min_length=8, max_length=1024)
 
 
 class ChangePasswordRequest(BaseModel):

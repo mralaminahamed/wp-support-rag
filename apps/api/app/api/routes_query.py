@@ -232,7 +232,9 @@ async def query_stream(
                 yield _sse("token", {"text": event.text})
             else:
                 final = event
-        assert final is not None
+        if final is None:
+            yield _sse("error", {"detail": "stream produced no final event"})
+            return
         latency_ms = int((perf_counter() - start) * 1000)
 
         plugin_id = None

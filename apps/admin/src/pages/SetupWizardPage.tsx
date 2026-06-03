@@ -618,7 +618,7 @@ export function GenerationStep() {
         {provider !== "ollama" && (
           <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             <i className="ti ti-info-circle mr-1" />
-            {provider === "anthropic" ? "Anthropic" : "OpenAI"} credentials are configured via{" "}
+            {provider.charAt(0).toUpperCase() + provider.slice(1)} credentials are configured via{" "}
             <code className="font-mono">
               WPRAG_{provider.toUpperCase()}_API_KEY
             </code>{" "}

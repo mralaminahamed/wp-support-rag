@@ -11,6 +11,7 @@ from __future__ import annotations
 from app.config import ProviderName, Settings, get_settings
 from app.llm.anthropic import AnthropicProvider
 from app.llm.base import LLMProvider
+from app.llm.gemini import GeminiProvider
 from app.llm.ollama import OllamaProvider
 from app.llm.openai import OpenAIProvider
 
@@ -33,6 +34,8 @@ def build_provider(settings: Settings, provider_name: ProviderName | None = None
         return AnthropicProvider(settings)
     if name == "openai":
         return OpenAIProvider(settings)
+    if name == "gemini":
+        return GeminiProvider(settings)
     if name == "ollama":
         return OllamaProvider(settings)
     raise ValueError(f"unknown provider: {name}")
@@ -59,6 +62,8 @@ def active_model(
         return settings.anthropic_model
     if name == "openai":
         return settings.openai_model
+    if name == "gemini":
+        return settings.gemini_model
     if name == "ollama":
         return settings.ollama_model
     raise ValueError(f"unknown provider: {name}")

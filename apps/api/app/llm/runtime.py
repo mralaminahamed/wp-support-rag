@@ -66,6 +66,8 @@ def env_model(settings: Settings, provider: ProviderName) -> str:
         return settings.anthropic_model
     if provider == "openai":
         return settings.openai_model
+    if provider == "gemini":
+        return settings.gemini_model
     if provider == "ollama":
         return settings.ollama_model
     raise ValueError(f"unknown provider: {provider}")
@@ -85,6 +87,8 @@ def is_configured(settings: Settings, provider: ProviderName) -> bool:
         return settings.anthropic_api_key is not None
     if provider == "openai":
         return settings.openai_api_key is not None
+    if provider == "gemini":
+        return settings.gemini_api_key is not None
     if provider == "ollama":
         return bool(settings.ollama_base_url)
     return False

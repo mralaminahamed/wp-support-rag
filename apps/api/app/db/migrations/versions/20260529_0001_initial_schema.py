@@ -23,7 +23,7 @@ from alembic import op
 from app.db.models import HNSW_OPS, embedding_type
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0001"
+revision: str = "20260529_0001"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

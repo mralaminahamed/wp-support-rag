@@ -24,8 +24,8 @@ from collections.abc import Sequence
 from alembic import op
 from app.db.models import HNSW_OPS, embedding_type
 
-revision: str = "0002"
-down_revision: str | None = "0001"
+revision: str = "20260529_0002"
+down_revision: str | None = "20260529_0001"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

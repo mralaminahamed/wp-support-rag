@@ -10,9 +10,10 @@ Author: Al Amin Ahamed.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class QueryRequest(BaseModel):
@@ -748,3 +749,29 @@ class AppendMessagesRequest(BaseModel):
     """
 
     messages: list[AppendMessageItem] = Field(min_length=1, max_length=10)
+
+
+class AdapterPluginSummary(BaseModel):
+    """API response model for an installed adapter plugin.
+
+    Attributes:
+        slug: Unique plugin identifier.
+        display_name: Human-readable plugin name.
+        version: Semantic version string, or None if not available.
+        source: Origin of the plugin (builtin, entrypoint, or file-based).
+        handles: List of document types this plugin can process.
+        status: Current plugin state (loaded, error, or disabled).
+        error: Error message if status is 'error', else None.
+        installed_at: ISO timestamp when the plugin was installed/discovered.
+    """
+
+    slug: str
+    display_name: str
+    version: str | None
+    source: Literal["builtin", "entrypoint", "file"]
+    handles: list[str]
+    status: Literal["loaded", "error", "disabled"]
+    error: str | None
+    installed_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

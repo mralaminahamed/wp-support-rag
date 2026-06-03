@@ -1,5 +1,7 @@
 // Admin + health API calls (app /api/v1/admin/*, /health). Author: Al Amin Ahamed.
 import type {
+  AdapterPluginSummary,
+  AdapterTypeInfo,
   AppendMessageItem,
   EmbeddingConfigUpdate,
   Health,
@@ -191,6 +193,31 @@ export async function setupCreateAdmin(
     { email, password },
   );
   return res.data;
+}
+
+export async function getAdapterTypes(): Promise<AdapterTypeInfo[]> {
+  const res = await apiClient.get<AdapterTypeInfo[]>("/api/v1/admin/adapter-plugins/types");
+  return res.data;
+}
+
+export async function listAdapterPlugins(): Promise<AdapterPluginSummary[]> {
+  const res = await apiClient.get<AdapterPluginSummary[]>("/api/v1/admin/adapter-plugins");
+  return res.data;
+}
+
+export async function uploadAdapterPlugin(file: File): Promise<AdapterPluginSummary> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await apiClient.post<AdapterPluginSummary>(
+    "/api/v1/admin/adapter-plugins/upload",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return res.data;
+}
+
+export async function deleteAdapterPlugin(slug: string): Promise<void> {
+  await apiClient.delete(`/api/v1/admin/adapter-plugins/${slug}`);
 }
 
 // ---------------------------------------------------------------------------

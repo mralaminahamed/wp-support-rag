@@ -278,3 +278,23 @@ export interface AppendMessageItem {
   meta?: Record<string, unknown> | null;
 }
 
+export interface AdapterTypeInfo {
+  source_type: string;
+  display_name: string;
+  adapter_slug: string;
+  config_schema: Record<string, unknown>;
+  is_builtin: boolean;
+  multi_instance: boolean;
+}
+
+export interface AdapterPluginSummary {
+  slug: string;
+  display_name: string;
+  version: string | null;
+  source: "builtin" | "entrypoint" | "file";
+  handles: string[];
+  status: "loaded" | "error" | "disabled";
+  error: string | null;
+  installed_at: string;
+}
+

@@ -22,6 +22,7 @@ from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api import routes_admin, routes_query
+from app.api.routes_adapters import router as adapters_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_setup import router as setup_router
 from app.api.routes_threads import router as threads_router
@@ -146,6 +147,7 @@ def create_app() -> FastAPI:
     app.include_router(users_router)
     app.include_router(routes_query.router)
     app.include_router(routes_admin.router)
+    app.include_router(adapters_router)
     app.include_router(threads_router)
     app.include_router(setup_router)
 

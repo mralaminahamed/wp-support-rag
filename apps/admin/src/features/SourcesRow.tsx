@@ -1,7 +1,7 @@
 // Expandable per-plugin sources table: enable/disable, per-source ingest, delete, add. Author: Al Amin Ahamed.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { addSource, deleteSource, ingestSource, listSources, patchSource } from "@/api/admin";
+import { deleteSource, ingestSource, listSources, patchSource } from "@/api/admin";
 import { useToast } from "@/components/ToastProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,8 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { relativeTime } from "@/lib/format";
 import { extractErrorMessage } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
-import { SOURCE_TYPES } from "@/types/api";
 import type { SourceSummary } from "@/types/api";
+import { AddSourceModal } from "./AddSourceModal";
 
 const RUN_STYLE: Record<string, { cls: string; icon: string; label: string }> = {
   queued:    { cls: "bg-warning/10 text-warning border-warning/20",               icon: "ti-clock",        label: "queued"    },
@@ -72,6 +72,7 @@ function EnableToggle({
 }
 
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
+const CONFIGURABLE_TYPES = new Set(["webpage", "rest_endpoint"]);
 
 function SourceTableRow({
   s,
@@ -83,9 +84,9 @@ function SourceTableRow({
   deleteLoading,
 }: {
   s: SourceSummary;
-  onToggle: (sourceType: string, enabled: boolean) => void;
-  onIngest: (sourceType: string) => void;
-  onDelete: (sourceType: string) => void;
+  onToggle: (sourceId: string, enabled: boolean) => void;
+  onIngest: (sourceId: string) => void;
+  onDelete: (sourceId: string) => void;
   toggleLoading: boolean;
   ingestLoading: boolean;
   deleteLoading: boolean;
@@ -94,9 +95,14 @@ function SourceTableRow({
 
   return (
     <tr className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
-      {/* Source type */}
+      {/* Name + type badge */}
       <td className="py-2.5 pl-4 pr-3">
-        <span className="font-mono text-[12px] font-medium text-foreground">{s.source_type}</span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[12px] font-medium text-foreground">{s.name}</span>
+          {s.name !== s.source_type && (
+            <span className="font-mono text-[10px] text-muted-foreground">{s.source_type}</span>
+          )}
+        </div>
       </td>
 
       {/* Enabled toggle */}
@@ -104,7 +110,7 @@ function SourceTableRow({
         <EnableToggle
           enabled={s.enabled}
           loading={toggleLoading}
-          onToggle={() => onToggle(s.source_type, !s.enabled)}
+          onToggle={() => onToggle(s.source_id, !s.enabled)}
         />
       </td>
 
@@ -128,14 +134,14 @@ function SourceTableRow({
         {s.last_ingested_at ? relativeTime(s.last_ingested_at) : "never"}
       </td>
 
-      {/* Chunks — live DB count */}
+      {/* Chunks */}
       <td className="pr-3 text-[12px] text-muted-foreground">
         <Badge variant={s.chunk_count > 0 ? "accent" : "secondary"} className="text-[10px]">
           {s.chunk_count.toLocaleString()}
         </Badge>
       </td>
 
-      {/* Last run — chunks / docs from most recent ingest */}
+      {/* Last run stats */}
       <td className="pr-3 text-[12px] text-muted-foreground whitespace-nowrap">
         {s.run_chunks !== null || s.run_docs !== null ? (
           <span>
@@ -155,7 +161,7 @@ function SourceTableRow({
             <span className="text-destructive font-medium">Delete?</span>
             <button
               type="button"
-              onClick={() => { onDelete(s.source_type); setConfirmDelete(false); }}
+              onClick={() => { onDelete(s.source_id); setConfirmDelete(false); }}
               disabled={deleteLoading}
               className="text-destructive font-semibold hover:underline disabled:opacity-50"
             >
@@ -171,10 +177,20 @@ function SourceTableRow({
           </span>
         ) : (
           <span className="inline-flex items-center gap-0.5">
+            {CONFIGURABLE_TYPES.has(s.source_type) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                title="Edit config"
+                className="h-7 w-7 p-0 text-muted-foreground"
+              >
+                <i className="ti ti-settings text-[12px]" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onIngest(s.source_type)}
+              onClick={() => onIngest(s.source_id)}
               disabled={ingestLoading}
               title="Trigger ingest for this source"
               className="h-7 w-7 p-0"
@@ -197,54 +213,10 @@ function SourceTableRow({
   );
 }
 
-function AddSourceRow({
-  usedTypes,
-  onAdd,
-  loading,
-}: {
-  usedTypes: Set<string>;
-  onAdd: (sourceType: string) => void;
-  loading: boolean;
-}) {
-  const available = SOURCE_TYPES.filter((t) => !usedTypes.has(t));
-  const [selected, setSelected] = useState(available[0] ?? "");
-
-  if (available.length === 0) return null;
-
-  return (
-    <tr>
-      <td colSpan={7} className="px-4 py-2">
-        <div className="flex items-center gap-2">
-          <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            className="h-7 rounded border border-border bg-background px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            {available.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onAdd(selected)}
-            disabled={loading || !selected}
-            className="h-7 text-[12px]"
-          >
-            <i className="ti ti-plus text-[11px] mr-1" />
-            Add source
-          </Button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 export function SourcesRow({ slug, colSpan }: { slug: string; colSpan: number }) {
   const queryClient = useQueryClient();
   const toast = useToast();
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const sources = useQuery({
     queryKey: ["sources", slug],
@@ -257,21 +229,21 @@ export function SourcesRow({ slug, colSpan }: { slug: string; colSpan: number })
   });
 
   const toggleMutation = useMutation({
-    mutationFn: ({ sourceType, enabled }: { sourceType: string; enabled: boolean }) =>
-      patchSource(slug, sourceType, { enabled }),
+    mutationFn: ({ sourceId, enabled }: { sourceId: string; enabled: boolean }) =>
+      patchSource(slug, sourceId, { enabled }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sources", slug] }),
     onError: (err) => toast.err(extractErrorMessage(err)),
   });
 
   const ingestMutation = useMutation({
-    mutationFn: (sourceType: string) => ingestSource(slug, sourceType),
+    mutationFn: (sourceId: string) => ingestSource(slug, sourceId),
     onSuccess: (data) =>
       toast.ok(`Enqueued ${data.enqueued_sources} source for ${data.plugin_slug}`),
     onError: (err) => toast.err(extractErrorMessage(err)),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (sourceType: string) => deleteSource(slug, sourceType),
+    mutationFn: (sourceId: string) => deleteSource(slug, sourceId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sources", slug] });
       queryClient.invalidateQueries({ queryKey: ["plugins"] });
@@ -280,85 +252,83 @@ export function SourcesRow({ slug, colSpan }: { slug: string; colSpan: number })
     onError: (err) => toast.err(extractErrorMessage(err)),
   });
 
-  const addMutation = useMutation({
-    mutationFn: (sourceType: string) => addSource(slug, sourceType),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["sources", slug] });
-      queryClient.invalidateQueries({ queryKey: ["plugins"] });
-      toast.ok(`Added source ${data.source_type}`);
-    },
-    onError: (err) => toast.err(extractErrorMessage(err)),
-  });
-
   const usedTypes = new Set(sources.data?.map((s) => s.source_type) ?? []);
 
   return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="bg-muted/30 p-0">
-        {sources.isLoading ? (
-          <div className="flex flex-col gap-1.5 p-4">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </div>
-        ) : sources.isError ? (
-          <div className="p-4">
-            <ErrorState message={extractErrorMessage(sources.error)} />
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/60 text-left text-[11px] font-medium text-muted-foreground">
-                <th className="py-2 pl-4 pr-3 font-medium">Source type</th>
-                <th className="py-2 pr-3 font-medium">Enabled</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 pr-3 font-medium">Last ingested</th>
-                <th className="py-2 pr-3 font-medium">Chunks</th>
-                <th className="py-2 pr-3 font-medium">Last run</th>
-                <th className="py-2 pr-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sources.data!.length === 0 ? (
+    <>
+      <TableRow>
+        <TableCell colSpan={colSpan} className="bg-muted/30 p-0">
+          {sources.isLoading ? (
+            <div className="flex flex-col gap-1.5 p-4">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : sources.isError ? (
+            <div className="p-4">
+              <ErrorState message={extractErrorMessage(sources.error)} />
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/60 text-left text-[11px] font-medium text-muted-foreground">
+                  <th className="py-2 pl-4 pr-3 font-medium">Source</th>
+                  <th className="py-2 pr-3 font-medium">Enabled</th>
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                  <th className="py-2 pr-3 font-medium">Last ingested</th>
+                  <th className="py-2 pr-3 font-medium">Chunks</th>
+                  <th className="py-2 pr-3 font-medium">Last run</th>
+                  <th className="py-2 pr-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sources.data!.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-3 pl-4 text-[12px] text-muted-foreground">
+                      No sources. Add one below.
+                    </td>
+                  </tr>
+                ) : (
+                  sources.data!.map((s) => (
+                    <SourceTableRow
+                      key={s.source_id}
+                      s={s}
+                      onToggle={(sourceId, enabled) => toggleMutation.mutate({ sourceId, enabled })}
+                      onIngest={(sourceId) => ingestMutation.mutate(sourceId)}
+                      onDelete={(sourceId) => deleteMutation.mutate(sourceId)}
+                      toggleLoading={
+                        toggleMutation.isPending &&
+                        toggleMutation.variables?.sourceId === s.source_id
+                      }
+                      ingestLoading={
+                        ingestMutation.isPending && ingestMutation.variables === s.source_id
+                      }
+                      deleteLoading={
+                        deleteMutation.isPending && deleteMutation.variables === s.source_id
+                      }
+                    />
+                  ))
+                )}
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="py-3 pl-4 text-[12px] text-muted-foreground"
-                  >
-                    No sources. Add one below.
+                  <td colSpan={7} className="px-4 py-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 text-[12px]"
+                      onClick={() => setShowAddModal(true)}
+                    >
+                      <i className="ti ti-plus text-[11px] mr-1" />
+                      Add source
+                    </Button>
                   </td>
                 </tr>
-              ) : (
-                sources.data!.map((s) => (
-                  <SourceTableRow
-                    key={s.source_id}
-                    s={s}
-                    onToggle={(sourceType, enabled) =>
-                      toggleMutation.mutate({ sourceType, enabled })
-                    }
-                    onIngest={(sourceType) => ingestMutation.mutate(sourceType)}
-                    onDelete={(sourceType) => deleteMutation.mutate(sourceType)}
-                    toggleLoading={
-                      toggleMutation.isPending &&
-                      toggleMutation.variables?.sourceType === s.source_type
-                    }
-                    ingestLoading={
-                      ingestMutation.isPending && ingestMutation.variables === s.source_type
-                    }
-                    deleteLoading={
-                      deleteMutation.isPending && deleteMutation.variables === s.source_type
-                    }
-                  />
-                ))
-              )}
-              <AddSourceRow
-                usedTypes={usedTypes}
-                onAdd={(sourceType) => addMutation.mutate(sourceType)}
-                loading={addMutation.isPending}
-              />
-            </tbody>
-          </table>
-        )}
-      </TableCell>
-    </TableRow>
+              </tbody>
+            </table>
+          )}
+        </TableCell>
+      </TableRow>
+      {showAddModal && (
+        <AddSourceModal slug={slug} usedTypes={usedTypes} onClose={() => setShowAddModal(false)} />
+      )}
+    </>
   );
 }

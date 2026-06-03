@@ -77,6 +77,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - custom_adapters:/app/custom_adapters
     healthcheck:
       test:
         ["CMD-SHELL",
@@ -99,6 +101,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    volumes:
+      - custom_adapters:/app/custom_adapters
 
   beat:
     build:
@@ -146,3 +150,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  custom_adapters:

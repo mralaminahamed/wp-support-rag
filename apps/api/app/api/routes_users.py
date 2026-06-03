@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_settings_dep, require_permission
@@ -34,7 +34,7 @@ from app.auth.password import hash_password
 from app.auth.permissions import resolve_permissions
 from app.config import Settings
 from app.db.engine import get_session
-from app.db.models import InviteToken, Role, RolePermission, SystemSetting, User, UserRole
+from app.db.models import ConversationThread, InviteToken, Role, RolePermission, SystemSetting, User, UserRole
 from app.email import send_invite
 
 logger = logging.getLogger(__name__)
@@ -112,13 +112,24 @@ async def list_users(
 ) -> list[UserListItem]:
     """List all admin-console user accounts."""
     users = await _list_users(session)
+    if users:
+        counts_rows = (await session.execute(
+            select(ConversationThread.user_id, func.count(ConversationThread.id).label("cnt"))
+            .where(ConversationThread.user_id.in_([u.id for u in users]))
+            .group_by(ConversationThread.user_id)
+        )).all()
+        thread_counts = {str(row.user_id): row.cnt for row in counts_rows}
+    else:
+        thread_counts = {}
     return [
         UserListItem(
             id=u.id,
             email=u.email,
             roles=[r.name for r in u.roles],
+            permissions=_effective_permissions(u),
             is_active=u.is_active,
             created_at=u.created_at.isoformat(),
+            thread_count=thread_counts.get(str(u.id), 0),
         )
         for u in users
     ]

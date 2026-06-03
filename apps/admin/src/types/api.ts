@@ -206,8 +206,10 @@ export interface UserListItem {
   id: string;
   email: string;
   roles: string[];
+  permissions: string[];
   is_active: boolean;
   created_at: string;
+  thread_count: number;
 }
 
 export interface CreateUserRequest {

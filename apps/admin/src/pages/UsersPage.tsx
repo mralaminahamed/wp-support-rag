@@ -14,6 +14,7 @@ import {
 } from "@/api/auth";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/components/ToastProvider";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +24,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatCard } from "@/components/ui/stat-card";
 import {
   Select,
   SelectContent,
@@ -45,10 +47,7 @@ import type { InviteSummary } from "@/types/api";
 
 // ── Status helpers ──────────────────────────────────────────────────────────
 
-const INVITE_STATUS_STYLE: Record<
-  string,
-  { cls: string; label: string }
-> = {
+const INVITE_STATUS_STYLE: Record<string, { cls: string; label: string }> = {
   pending: {
     cls: "bg-warning/10 text-warning border-warning/20",
     label: "Pending",
@@ -85,6 +84,7 @@ export function UsersPage() {
   const qc = useQueryClient();
   const [showInvite, setShowInvite] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [search, setSearch] = useState("");
 
   const users = useQuery({ queryKey: ["users"], queryFn: listUsers });
   const roles = useQuery({ queryKey: ["roles"], queryFn: listRoles });
@@ -128,6 +128,21 @@ export function UsersPage() {
   const canWrite = hasPermission("users:write");
   const canInvite = hasPermission("users:invite");
 
+  // Derived stats
+  const allUsers = users.data ?? [];
+  const activeCount = allUsers.filter((u) => u.is_active).length;
+  const inactiveCount = allUsers.filter((u) => !u.is_active).length;
+  const pendingCount = (invites.data ?? []).filter((i) => i.status === "pending").length;
+
+  const q = search.trim().toLowerCase();
+  const filteredUsers = q
+    ? allUsers.filter(
+        (u) =>
+          u.email.toLowerCase().includes(q) ||
+          u.roles.some((r) => r.toLowerCase().includes(q)),
+      )
+    : allUsers;
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -135,23 +150,61 @@ export function UsersPage() {
         description="Manage admin-console accounts and invitations."
       />
 
+      {/* ── Stats bar ─────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard
+          icon="ti-users"
+          label="Total users"
+          value={users.isLoading ? "—" : allUsers.length}
+        />
+        <StatCard
+          icon="ti-user-check"
+          label="Active"
+          value={users.isLoading ? "—" : activeCount}
+          tone="success"
+        />
+        <StatCard
+          icon="ti-user-off"
+          label="Inactive"
+          value={users.isLoading ? "—" : inactiveCount}
+          tone={inactiveCount > 0 ? "warning" : "default"}
+        />
+        <StatCard
+          icon="ti-mail"
+          label="Pending invites"
+          value={invites.isLoading ? "—" : pendingCount}
+          tone={pendingCount > 0 ? "warning" : "default"}
+        />
+      </div>
+
       {/* ── Accounts table ─────────────────────────────────────────────── */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
           <CardTitle>Accounts</CardTitle>
-          <div className="flex gap-2">
-            {canInvite && (
-              <Button variant="secondary" onClick={() => setShowInvite(true)}>
-                <i className="ti ti-mail-plus mr-1.5 text-[13px]" />
-                Invite user
-              </Button>
-            )}
-            {canWrite && (
-              <Button onClick={() => setShowAdd(true)}>
-                <i className="ti ti-user-plus mr-1.5 text-[13px]" />
-                Add user
-              </Button>
-            )}
+          <div className="flex flex-1 items-center gap-2 min-w-0">
+            <div className="relative flex-1 max-w-xs">
+              <i className="ti ti-search absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-[13px]" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter by email or role…"
+                className="pl-7 h-8 text-sm"
+              />
+            </div>
+            <div className="flex shrink-0 gap-2">
+              {canInvite && (
+                <Button variant="secondary" onClick={() => setShowInvite(true)}>
+                  <i className="ti ti-mail-plus mr-1.5 text-[13px]" />
+                  Invite user
+                </Button>
+              )}
+              {canWrite && (
+                <Button onClick={() => setShowAdd(true)}>
+                  <i className="ti ti-user-plus mr-1.5 text-[13px]" />
+                  Add user
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -163,27 +216,33 @@ export function UsersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Email</TableHead>
+                  <TableHead>User</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Threads</TableHead>
                   <TableHead>Joined</TableHead>
                   {canWrite && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.data?.length === 0 && (
+                {filteredUsers.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={canWrite ? 5 : 4}
+                      colSpan={canWrite ? 6 : 5}
                       className="text-center text-sm text-muted-foreground py-6"
                     >
-                      No users yet.
+                      {q ? "No users match your filter." : "No users yet."}
                     </TableCell>
                   </TableRow>
                 )}
-                {users.data?.map((u) => (
+                {filteredUsers.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell className="font-mono text-sm">{u.email}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar email={u.email} name={u.email} size={28} className="shrink-0" />
+                        <span className="font-mono text-sm truncate">{u.email}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {u.roles.length > 0 ? (
@@ -196,6 +255,14 @@ export function UsersPage() {
                           <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </div>
+                      {u.permissions.length > 0 && (
+                        <p
+                          className="text-[10px] text-muted-foreground mt-0.5 cursor-default"
+                          title={u.permissions.join(", ")}
+                        >
+                          {u.permissions.length} permission{u.permissions.length !== 1 ? "s" : ""}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell>
                       <span
@@ -208,6 +275,16 @@ export function UsersPage() {
                       >
                         {u.is_active ? "Active" : "Inactive"}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                      {u.thread_count > 0 ? (
+                        <span className="inline-flex items-center gap-1">
+                          <i className="ti ti-messages text-[11px]" />
+                          {u.thread_count}
+                        </span>
+                      ) : (
+                        <span className="text-xs">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {relativeTime(u.created_at)}
@@ -283,7 +360,7 @@ export function UsersPage() {
             <CardTitle>Invitations</CardTitle>
             <span className="text-xs text-muted-foreground">
               {invites.data
-                ? `${invites.data.filter((i) => i.status === "pending").length} pending`
+                ? `${pendingCount} pending`
                 : ""}
             </span>
           </CardHeader>
@@ -395,7 +472,7 @@ function InviteRow({
             className="h-7 gap-1.5 px-2 text-xs"
           >
             <i className="ti ti-send text-[12px]" />
-            {invite.status === "expired" ? "Resend" : "Resend"}
+            Resend
           </Button>
         )}
       </TableCell>

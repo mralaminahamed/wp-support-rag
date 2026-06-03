@@ -456,15 +456,19 @@ class UserListItem(BaseModel):
         id: User UUID.
         email: User email.
         roles: Role names.
+        permissions: Effective permission strings (resolved from roles + overrides).
         is_active: Account status.
         created_at: ISO creation timestamp.
+        thread_count: Number of conversation threads owned by this user.
     """
 
     id: uuid.UUID
     email: str
     roles: list[str]
+    permissions: list[str]
     is_active: bool
     created_at: str
+    thread_count: int = 0
 
 
 class CreateUserRequest(BaseModel):

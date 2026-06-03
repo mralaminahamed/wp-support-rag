@@ -53,10 +53,12 @@ class Settings(BaseSettings):
         redis_dsn: Redis DSN used for the response cache, Celery broker, and rate limiter.
         anthropic_api_key: Claude provider credential (optional if unused).
         openai_api_key: OpenAI credential, required for embeddings and the OpenAI provider.
+        gemini_api_key: Google AI Studio credential for Gemini generation.
         ollama_base_url: Base URL of a local Ollama server.
         default_provider: Provider the factory resolves when none is requested.
         anthropic_model: Claude model id used for generation.
         openai_model: OpenAI model id used for generation.
+        gemini_model: Gemini model id used for generation.
         ollama_model: Ollama model id used for generation.
         llm_timeout_seconds: Per-call timeout for generation providers.
         llm_max_retries: Bounded retry count for transient provider failures.

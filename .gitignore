@@ -36,6 +36,9 @@ CLAUDE.md
 # Eval run artifacts (generated)
 apps/api/eval/runs/
 
+# Fetch cache (pre-fetched raw docs + chunks, regeneratable via `cli fetch`)
+apps/api/data/fetch_cache/
+
 # JS / monorepo
 node_modules/
 apps/**/dist/

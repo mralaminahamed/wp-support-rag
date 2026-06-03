@@ -281,6 +281,49 @@ export interface AppendMessageItem {
   meta?: Record<string, unknown> | null;
 }
 
+export interface TicketSummary {
+  id: string;
+  title: string;
+  source_url: string;
+  plugin_slug: string;
+  fetched_at: string;
+  chunk_count: number;
+}
+
+export interface TicketReply {
+  id: number;
+  author: string;
+  author_url: string | null;
+  content: string;
+  created_at: string;
+  is_topic: boolean;
+}
+
+export interface TicketDetail {
+  id: string;
+  title: string;
+  source_url: string;
+  plugin_slug: string;
+  replies: TicketReply[];
+  wporg_topic_id: number | null;
+  error: string | null;
+}
+
+export interface PostReplyRequest {
+  content: string;
+}
+
+export interface PostReplyResponse {
+  success: boolean;
+  message: string;
+  reply_url: string | null;
+}
+
+export interface WporgCredentials {
+  configured: boolean;
+  username: string | null;
+}
+
 export interface AdapterTypeInfo {
   source_type: string;
   display_name: string;

@@ -26,6 +26,7 @@ from app.api.routes_adapters import router as adapters_router
 from app.api.routes_auth import router as auth_router
 from app.api.routes_setup import router as setup_router
 from app.api.routes_threads import router as threads_router
+from app.api.routes_tickets import router as tickets_router
 from app.api.routes_users import router as users_router
 from app.auth.bootstrap import maybe_bootstrap_admin
 from app.config import get_settings
@@ -149,6 +150,7 @@ def create_app() -> FastAPI:
     app.include_router(routes_admin.router)
     app.include_router(adapters_router)
     app.include_router(threads_router)
+    app.include_router(tickets_router)
     app.include_router(setup_router)
 
     @app.get("/health", response_model=HealthResponse, tags=["ops"])

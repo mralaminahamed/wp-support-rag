@@ -24,6 +24,8 @@ import {
   SetupWizardLayout,
 } from "@/pages/SetupWizardPage";
 import { AdaptersPage } from "@/pages/AdaptersPage";
+import { TicketDetailPage } from "@/pages/TicketDetailPage";
+import { TicketsPage } from "@/pages/TicketsPage";
 import { ThreadsListPage } from "@/pages/ThreadsListPage";
 import { UsersPage } from "@/pages/UsersPage";
 
@@ -79,6 +81,13 @@ export const router = createBrowserRouter([
           },
           { path: "users", element: <UsersPage /> },
           { path: "adapters", element: <AdaptersPage /> },
+          {
+            path: "tickets",
+            children: [
+              { index: true, element: <TicketsPage /> },
+              { path: ":docId", element: <TicketDetailPage /> },
+            ],
+          },
           {
             path: "profile",
             element: <ProfilePage />,

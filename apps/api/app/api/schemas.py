@@ -756,6 +756,73 @@ class AppendMessagesRequest(BaseModel):
     messages: list[AppendMessageItem] = Field(min_length=1, max_length=10)
 
 
+# ---------------------------------------------------------------------------
+# Support ticket schemas
+# ---------------------------------------------------------------------------
+
+
+class TicketSummary(BaseModel):
+    """A support ticket summary for list display."""
+
+    id: str
+    title: str
+    source_url: str
+    plugin_slug: str
+    fetched_at: str
+    chunk_count: int
+
+
+class TicketReply(BaseModel):
+    """One post in a support thread (topic or reply)."""
+
+    id: int
+    author: str
+    author_url: str | None
+    content: str
+    created_at: str
+    is_topic: bool
+
+
+class TicketDetail(BaseModel):
+    """Full ticket detail with live-fetched replies."""
+
+    id: str
+    title: str
+    source_url: str
+    plugin_slug: str
+    replies: list[TicketReply]
+    wporg_topic_id: int | None
+    error: str | None
+
+
+class PostReplyRequest(BaseModel):
+    """Body for POST /admin/tickets/{id}/replies."""
+
+    content: str = Field(min_length=1, max_length=5000)
+
+
+class PostReplyResponse(BaseModel):
+    """Response after posting a reply."""
+
+    success: bool
+    message: str
+    reply_url: str | None = None
+
+
+class WporgCredentialsResponse(BaseModel):
+    """WP.org credential status."""
+
+    configured: bool
+    username: str | None
+
+
+class WporgCredentialsRequest(BaseModel):
+    """Save WP.org credentials for reply posting."""
+
+    username: str = Field(min_length=1, max_length=200)
+    app_password: str = Field(min_length=1, max_length=500)
+
+
 class AdapterPluginSummary(BaseModel):
     """API response model for an installed adapter plugin.
 

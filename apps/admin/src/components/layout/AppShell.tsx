@@ -19,6 +19,7 @@ const NAV: Array<{
   { to: "/plugins", label: "Plugins", icon: "ti-puzzle" },
   { to: "/playground", label: "Playground", icon: "ti-message-chatbot" },
   { to: "/users", label: "Users", icon: "ti-users", permission: "users:read" },
+  { to: "/tickets", label: "Tickets", icon: "ti-ticket", permission: "plugins:read" },
   { to: "/adapters", label: "Adapters", icon: "ti-plug" },
 ];
 

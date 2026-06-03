@@ -8,6 +8,8 @@ export const SOURCE_TYPES = [
   "wporg_faq",
   "wporg_changelog",
   "wporg_support",
+  "webpage",
+  "rest_endpoint",
 ] as const;
 
 export type SourceType = (typeof SOURCE_TYPES)[number];
@@ -33,6 +35,7 @@ export interface PluginSummary {
 export interface SourceSummary {
   source_id: string;
   source_type: string;
+  name: string;
   enabled: boolean;
   last_ingested_at: string | null;
   chunk_count: number;

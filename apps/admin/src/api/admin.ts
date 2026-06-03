@@ -36,32 +36,51 @@ export async function listSources(slug: string): Promise<SourceSummary[]> {
   return res.data;
 }
 
-export async function addSource(slug: string, sourceType: string): Promise<SourceSummary> {
+export async function addSource(
+  slug: string,
+  sourceType: string,
+  name: string,
+  config: Record<string, unknown> = {},
+): Promise<SourceSummary> {
   const res = await apiClient.post<SourceSummary>(`/api/v1/admin/plugins/${slug}/sources`, {
     source_type: sourceType,
+    name,
+    config,
   });
   return res.data;
 }
 
 export async function patchSource(
   slug: string,
-  sourceType: string,
+  sourceId: string,
   payload: PatchSourcePayload,
 ): Promise<SourceSummary> {
   const res = await apiClient.patch<SourceSummary>(
-    `/api/v1/admin/plugins/${slug}/sources/${sourceType}`,
+    `/api/v1/admin/plugins/${slug}/sources/${sourceId}`,
     payload,
   );
   return res.data;
 }
 
-export async function deleteSource(slug: string, sourceType: string): Promise<void> {
-  await apiClient.delete(`/api/v1/admin/plugins/${slug}/sources/${sourceType}`);
+export async function deleteSource(slug: string, sourceId: string): Promise<void> {
+  await apiClient.delete(`/api/v1/admin/plugins/${slug}/sources/${sourceId}`);
 }
 
-export async function ingestSource(slug: string, sourceType: string): Promise<IngestTriggerResponse> {
+export async function ingestSource(slug: string, sourceId: string): Promise<IngestTriggerResponse> {
   const res = await apiClient.post<IngestTriggerResponse>(
-    `/api/v1/admin/ingest/${slug}/${sourceType}`,
+    `/api/v1/admin/ingest/${slug}/sources/${sourceId}`,
+  );
+  return res.data;
+}
+
+export async function patchSourceConfig(
+  slug: string,
+  sourceId: string,
+  config: Record<string, unknown>,
+): Promise<SourceSummary> {
+  const res = await apiClient.patch<SourceSummary>(
+    `/api/v1/admin/plugins/${slug}/sources/${sourceId}/config`,
+    { config },
   );
   return res.data;
 }

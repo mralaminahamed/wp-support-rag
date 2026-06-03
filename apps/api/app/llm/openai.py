@@ -37,6 +37,15 @@ class OpenAIProvider:
     """OpenAI generation provider."""
 
     name: ClassVar[str] = "openai"
+    title: ClassVar[str] = "OpenAI"
+    default_model_id: ClassVar[str] = "gpt-4o-mini"
+    available_models: ClassVar[list[str]] = [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4-turbo",
+        "gpt-4",
+        "gpt-3.5-turbo",
+    ]
 
     def __init__(self, settings: Settings) -> None:
         """Initialise the OpenAI client from configuration.

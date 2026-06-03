@@ -30,6 +30,9 @@ class OllamaProvider:
     """Local Ollama generation provider."""
 
     name: ClassVar[str] = "ollama"
+    title: ClassVar[str] = "Ollama (local)"
+    default_model_id: ClassVar[str] = "llama3.2"
+    available_models: ClassVar[list[str]] = []  # dynamic — fetched from /api/tags
 
     def __init__(self, settings: Settings) -> None:
         """Initialise the Ollama client from configuration.

@@ -94,6 +94,32 @@ def is_configured(settings: Settings, provider: ProviderName) -> bool:
     return False
 
 
+def provider_metadata(provider: ProviderName) -> tuple[str, list[str]]:
+    """Return (title, available_models) for a provider.
+
+    Args:
+        provider: The provider name.
+
+    Returns:
+        tuple[str, list[str]]: Display title and list of known model ids.
+    """
+    from app.llm.anthropic import AnthropicProvider  # noqa: PLC0415
+    from app.llm.gemini import GeminiProvider  # noqa: PLC0415
+    from app.llm.ollama import OllamaProvider  # noqa: PLC0415
+    from app.llm.openai import OpenAIProvider  # noqa: PLC0415
+
+    _MAP = {
+        "anthropic": AnthropicProvider,
+        "openai": OpenAIProvider,
+        "gemini": GeminiProvider,
+        "ollama": OllamaProvider,
+    }
+    cls = _MAP.get(provider)
+    if cls is None:
+        return (provider.capitalize(), [])
+    return (cls.title, cls.available_models)
+
+
 async def get_override(redis: Redis) -> dict[str, str]:
     """Read the raw provider/model override from Redis.
 

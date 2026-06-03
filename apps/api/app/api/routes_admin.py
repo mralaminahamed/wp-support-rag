@@ -60,6 +60,7 @@ from app.llm.runtime import (
     embedding_configured,
     env_model,
     is_configured,
+    provider_metadata,
     resolve,
     resolve_embedding,
     set_embedding_override,
@@ -120,7 +121,9 @@ async def _llm_config(redis: Redis, settings: Settings) -> LLMConfigResponse:
         providers=[
             LLMProviderInfo(
                 name=name,
+                title=provider_metadata(name)[0],
                 default_model=env_model(settings, name),
+                available_models=provider_metadata(name)[1],
                 configured=is_configured(settings, name),
             )
             for name in PROVIDERS

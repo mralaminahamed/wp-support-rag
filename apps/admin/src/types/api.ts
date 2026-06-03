@@ -93,7 +93,9 @@ export interface SourceRef {
 
 export interface LLMProviderInfo {
   name: string;
+  title: string;
   default_model: string;
+  available_models: string[];
   configured: boolean;
 }
 

@@ -94,6 +94,9 @@ class LLMProvider(Protocol):
     """
 
     name: ClassVar[str]
+    title: ClassVar[str]
+    default_model_id: ClassVar[str]
+    available_models: ClassVar[list[str]]
 
     async def complete(self, request: CompletionRequest) -> CompletionResult:
         """Produce a completion for the given grounded request.

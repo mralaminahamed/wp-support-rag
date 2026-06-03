@@ -254,16 +254,20 @@ class IngestAllResponse(BaseModel):
 
 
 class LLMProviderInfo(BaseModel):
-    """A selectable generation provider and its env-default model (FR-GN-3).
+    """Summary of one generation provider shown in the admin Settings page.
 
     Attributes:
-        name: The provider name.
+        name: Provider identifier (e.g. ``"anthropic"``).
+        title: Human-readable display name (e.g. ``"Anthropic"``).
         default_model: The model id configured for this provider in the env file.
+        available_models: Known selectable models for this provider (empty = dynamic/Ollama).
         configured: Whether the provider has the credentials/endpoint it needs.
     """
 
     name: str
+    title: str
     default_model: str
+    available_models: list[str]
     configured: bool
 
 

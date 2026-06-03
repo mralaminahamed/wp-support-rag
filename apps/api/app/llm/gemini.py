@@ -38,6 +38,14 @@ class GeminiProvider:
     """Google Gemini generation provider (OpenAI-compatible endpoint)."""
 
     name: ClassVar[str] = "gemini"
+    title: ClassVar[str] = "Google Gemini"
+    default_model_id: ClassVar[str] = "gemini-2.0-flash"
+    available_models: ClassVar[list[str]] = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+    ]
 
     def __init__(self, settings: Settings) -> None:
         key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None

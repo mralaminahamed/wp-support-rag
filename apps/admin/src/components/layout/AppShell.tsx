@@ -16,11 +16,11 @@ const NAV: Array<{
   exact?: boolean;
 }> = [
   { to: "/", label: "Dashboard", icon: "ti-layout-dashboard", exact: true },
-  { to: "/plugins", label: "Plugins", icon: "ti-puzzle" },
   { to: "/playground", label: "Playground", icon: "ti-message-chatbot" },
-  { to: "/users", label: "Users", icon: "ti-users", permission: "users:read" },
   { to: "/tickets", label: "Tickets", icon: "ti-ticket", permission: "plugins:read" },
+  { to: "/plugins", label: "Plugins", icon: "ti-puzzle" },
   { to: "/adapters", label: "Adapters", icon: "ti-plug" },
+  { to: "/users", label: "Users", icon: "ti-users", permission: "users:read" },
 ];
 
 function NavItem({

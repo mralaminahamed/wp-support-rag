@@ -211,7 +211,7 @@ async def complete_setup(
     _: UserClaims = Depends(require_permission("settings:write")),
     session: AsyncSession = Depends(get_session),
 ) -> SetupStatusResponse:
-    """Mark the first-run setup wizard as complete. Requires authentication."""
+    """Mark the first-run setup wizard as complete and sync settings to .env."""
     stmt = (
         pg_insert(SystemSetting)
         .values(key=_KEY_SETUP, value="true")
@@ -219,4 +219,29 @@ async def complete_setup(
     )
     await session.execute(stmt)
     await session.commit()
+    # Best-effort: sync DB settings to .env so env defaults survive a full
+    # Redis+DB wipe. Silently ignored if .env is not mounted.
+    try:
+        from app.api.routes_admin import _ENV_FILE, _EMBED_MODEL_KEY, _LLM_MODEL_KEY, _set_env_var  # noqa: PLC0415
+        rows = await session.execute(
+            select(SystemSetting).where(
+                SystemSetting.key.in_(["llm:provider", "llm:model", "embed:provider", "embed:model"])
+            )
+        )
+        settings_map = {row.key: row.value for row in rows.scalars()}
+        if _ENV_FILE.exists() and settings_map:
+            content = _ENV_FILE.read_text(encoding="utf-8")
+            if provider := settings_map.get("llm:provider"):
+                content = _set_env_var(content, "WPRAG_DEFAULT_PROVIDER", provider)
+                if model := settings_map.get("llm:model"):
+                    if model_key := _LLM_MODEL_KEY.get(provider):
+                        content = _set_env_var(content, model_key, model)
+            if embed_provider := settings_map.get("embed:provider"):
+                content = _set_env_var(content, "WPRAG_EMBEDDING_PROVIDER", embed_provider)
+                if embed_model := settings_map.get("embed:model"):
+                    if embed_key := _EMBED_MODEL_KEY.get(embed_provider):
+                        content = _set_env_var(content, embed_key, embed_model)
+            _ENV_FILE.write_text(content, encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
     return SetupStatusResponse(complete=True)

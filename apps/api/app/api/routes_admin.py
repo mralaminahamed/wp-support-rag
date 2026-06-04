@@ -9,7 +9,9 @@ Author: Al Amin Ahamed.
 
 from __future__ import annotations
 
+import re
 import uuid
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -329,6 +331,80 @@ async def reset_embedding_config(
     )
     await session.commit()
     return await _llm_config(redis, settings)
+
+
+_ENV_FILE = Path(__file__).parents[4] / ".env"
+
+_LLM_MODEL_KEY: dict[str, str] = {
+    "anthropic": "WPRAG_ANTHROPIC_MODEL",
+    "openai": "WPRAG_OPENAI_MODEL",
+    "gemini": "WPRAG_GEMINI_MODEL",
+    "opencode_zen": "WPRAG_OPENCODE_ZEN_MODEL",
+    "ollama": "WPRAG_OLLAMA_MODEL",
+}
+
+_EMBED_MODEL_KEY: dict[str, str] = {
+    "openai": "WPRAG_EMBED_MODEL",
+    "ollama": "WPRAG_OLLAMA_EMBED_MODEL",
+}
+
+
+def _set_env_var(content: str, key: str, value: str) -> str:
+    """Update an existing KEY=VALUE line or append it if absent."""
+    pattern = re.compile(rf"^{re.escape(key)}=.*$", re.MULTILINE)
+    line = f"{key}={value}"
+    if pattern.search(content):
+        return pattern.sub(line, content)
+    return content.rstrip("\n") + f"\n{line}\n"
+
+
+@router.post("/sync-env", status_code=status.HTTP_204_NO_CONTENT)
+async def sync_env(
+    _: object = Depends(require_permission("settings:write")),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Write current system_settings LLM/embedding config back to the root .env file.
+
+    Reads the persisted provider override from system_settings and updates the
+    matching WPRAG_* env vars in the project-root .env so the settings survive
+    even a complete Redis+DB wipe (requires a full compose restart to take effect).
+
+    Args:
+        session: Database session for reading system_settings.
+
+    Raises:
+        HTTPException: 503 if the .env file is not mounted/writable.
+    """
+    if not _ENV_FILE.exists():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f".env file not mounted at {_ENV_FILE}; add '- ./.env:/workspace/.env' to docker-compose volumes",
+        )
+
+    rows = await session.execute(
+        select(SystemSetting).where(
+            SystemSetting.key.in_(["llm:provider", "llm:model", "embed:provider", "embed:model"])
+        )
+    )
+    settings_map = {row.key: row.value for row in rows.scalars()}
+
+    content = _ENV_FILE.read_text(encoding="utf-8")
+
+    if provider := settings_map.get("llm:provider"):
+        content = _set_env_var(content, "WPRAG_DEFAULT_PROVIDER", provider)
+        if model := settings_map.get("llm:model"):
+            model_key = _LLM_MODEL_KEY.get(provider)
+            if model_key:
+                content = _set_env_var(content, model_key, model)
+
+    if embed_provider := settings_map.get("embed:provider"):
+        content = _set_env_var(content, "WPRAG_EMBEDDING_PROVIDER", embed_provider)
+        if embed_model := settings_map.get("embed:model"):
+            embed_key = _EMBED_MODEL_KEY.get(embed_provider)
+            if embed_key:
+                content = _set_env_var(content, embed_key, embed_model)
+
+    _ENV_FILE.write_text(content, encoding="utf-8")
 
 
 @router.get("/queries", response_model=list[RecentQuery])

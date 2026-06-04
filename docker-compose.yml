@@ -83,6 +83,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ./.env:/workspace/.env
       - custom_adapters:/app/custom_adapters
     healthcheck:
       test:
@@ -107,6 +108,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - ./.env:/workspace/.env
       - custom_adapters:/app/custom_adapters
 
   beat:
@@ -120,6 +122,8 @@ services:
     command:
       ["celery", "-A", "app.ingestion.tasks:celery_app", "beat", "-l", "info",
        "--schedule", "/tmp/celerybeat-schedule"]
+    volumes:
+      - ./.env:/workspace/.env
     depends_on:
       redis:
         condition: service_healthy

@@ -15,7 +15,8 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from redis.asyncio import Redis
-from sqlalchemy import Select, Text, cast, func, select
+from sqlalchemy import Select, Text, cast, delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_redis_dep, get_settings_dep, require_permission
@@ -41,7 +42,7 @@ from app.api.schemas import (
 )
 from app.config import EmbeddingProvider, ProviderName, Settings
 from app.db.engine import get_session
-from app.db.models import Chunk, Document, Feedback, IngestionRun, Plugin, Query, Source, ThreadMessage
+from app.db.models import Chunk, Document, Feedback, IngestionRun, Plugin, Query, Source, SystemSetting, ThreadMessage
 from app.ingestion.registry import (
     PluginSpec,
     SourceSpec,
@@ -171,32 +172,50 @@ async def set_llm_config(
     _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
+    session: AsyncSession = Depends(get_session),
 ) -> LLMConfigResponse:
     """Override the active generation provider/model at runtime (FR-GN-3).
 
     The model is optional and defaults to the provider's env-configured model.
-    The override is stored in Redis and applied to subsequent generations
-    without a restart.
+    The override is stored in Redis and persisted to the DB so it survives
+    restarts. Only accepts providers that have credentials configured.
 
     Args:
         payload: The provider and optional model to activate.
         redis: Redis client backing the runtime override.
         settings: Application settings.
+        session: Database session for persistent storage.
 
     Returns:
         LLMConfigResponse: The new effective configuration.
 
     Raises:
-        HTTPException: 422 if the provider is unknown.
+        HTTPException: 422 if the provider is unknown or not configured.
     """
     if payload.provider not in PROVIDERS:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"unknown provider: {payload.provider}",
         )
+    if not is_configured(settings, payload.provider):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"provider '{payload.provider}' is not configured — "
+                f"set WPRAG_{payload.provider.upper()}_API_KEY in the environment"
+            ),
+        )
     provider: ProviderName = payload.provider
     model = (payload.model or "").strip() or env_model(settings, provider)
     await set_override(redis, provider, model)
+    for key, value in [("llm:provider", provider), ("llm:model", model)]:
+        stmt = (
+            pg_insert(SystemSetting)
+            .values(key=key, value=value)
+            .on_conflict_do_update(index_elements=["key"], set_={"value": value})
+        )
+        await session.execute(stmt)
+    await session.commit()
     return await _llm_config(redis, settings)
 
 
@@ -205,17 +224,23 @@ async def reset_llm_config(
     _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
+    session: AsyncSession = Depends(get_session),
 ) -> LLMConfigResponse:
     """Clear any override and revert to the env-file defaults (FR-GN-3).
 
     Args:
         redis: Redis client backing the runtime override.
         settings: Application settings.
+        session: Database session for removing persisted override.
 
     Returns:
         LLMConfigResponse: The configuration after reverting to env defaults.
     """
     await clear_override(redis)
+    await session.execute(
+        delete(SystemSetting).where(SystemSetting.key.in_(["llm:provider", "llm:model"]))
+    )
+    await session.commit()
     return await _llm_config(redis, settings)
 
 
@@ -225,6 +250,7 @@ async def set_embedding_config(
     _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
+    session: AsyncSession = Depends(get_session),
 ) -> LLMConfigResponse:
     """Override the active embedding provider/model at runtime (ADR-002).
 
@@ -263,6 +289,18 @@ async def set_embedding_config(
         )
     model = (payload.model or "").strip() or embed_model_for(settings, provider)
     await set_embedding_override(redis, provider, model, target_dims)
+    for key, value in [
+        ("embed:provider", provider),
+        ("embed:model", model),
+        ("embed:dimensions", str(target_dims)),
+    ]:
+        stmt = (
+            pg_insert(SystemSetting)
+            .values(key=key, value=value)
+            .on_conflict_do_update(index_elements=["key"], set_={"value": value})
+        )
+        await session.execute(stmt)
+    await session.commit()
     return await _llm_config(redis, settings)
 
 
@@ -271,17 +309,25 @@ async def reset_embedding_config(
     _: object = Depends(require_permission("settings:write")),
     redis: Redis = Depends(get_redis_dep),
     settings: Settings = Depends(get_settings_dep),
+    session: AsyncSession = Depends(get_session),
 ) -> LLMConfigResponse:
     """Clear any embedding override and revert to the env defaults (ADR-002).
 
     Args:
         redis: Redis client backing the embedding override.
         settings: Application settings.
+        session: Database session for removing persisted override.
 
     Returns:
         LLMConfigResponse: The configuration after reverting to env defaults.
     """
     await clear_embedding_override(redis)
+    await session.execute(
+        delete(SystemSetting).where(
+            SystemSetting.key.in_(["embed:provider", "embed:model", "embed:dimensions"])
+        )
+    )
+    await session.commit()
     return await _llm_config(redis, settings)
 
 

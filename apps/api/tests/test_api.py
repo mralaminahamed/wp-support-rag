@@ -271,7 +271,9 @@ async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
         body = initial.json()
         assert body["provider"] == "anthropic"
         assert body["source"] == "env"
-        assert {p["name"] for p in body["providers"]} == {"anthropic", "openai", "ollama"}
+        assert {p["name"] for p in body["providers"]} == {
+            "anthropic", "openai", "ollama", "gemini", "opencode_zen"
+        }
 
         set_resp = tc.put(
             "/api/v1/admin/llm",
@@ -286,10 +288,13 @@ async def test_admin_llm_config_override_roundtrip(_ready: None) -> None:
         # The override persists across reads.
         assert tc.get("/api/v1/admin/llm").json()["provider"] == "ollama"
 
-        # Omitting the model falls back to the provider's env default.
-        defaulted = tc.put("/api/v1/admin/llm", json={"provider": "openai"}).json()
-        assert defaulted["provider"] == "openai"
-        assert defaulted["model"] == Settings().openai_model
+        # Omitting the model falls back to the provider's env default (ollama).
+        defaulted = tc.put("/api/v1/admin/llm", json={"provider": "ollama"}).json()
+        assert defaulted["provider"] == "ollama"
+        assert defaulted["model"] == _test_settings().ollama_model
+
+        # Unconfigured providers (no API key) are rejected with 422.
+        assert tc.put("/api/v1/admin/llm", json={"provider": "openai"}).status_code == 422
 
         # Unknown providers are rejected.
         assert tc.put("/api/v1/admin/llm", json={"provider": "nope"}).status_code == 422

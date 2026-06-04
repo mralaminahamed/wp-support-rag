@@ -21,6 +21,10 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 
+from redis.asyncio import Redis
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api import routes_admin, routes_query
 from app.api.routes_adapters import router as adapters_router
 from app.api.routes_auth import router as auth_router
@@ -31,8 +35,10 @@ from app.api.routes_users import router as users_router
 from app.auth.bootstrap import maybe_bootstrap_admin
 from app.config import get_settings
 from app.db.engine import dispose_engine, get_sessionmaker
+from app.db.models import SystemSetting
 from app.db.redis import close_redis, get_redis
 from app.ingestion.adapter_registry import build_registry, init_registry
+from app.llm.runtime import set_embedding_override, set_override
 from app.observability.logging import CorrelationIdMiddleware, configure_logging
 
 logger = logging.getLogger(__name__)
@@ -85,6 +91,29 @@ async def _check_redis() -> bool:
         return False
 
 
+async def _restore_llm_config(session: AsyncSession, redis: Redis) -> None:
+    """Restore LLM and embedding overrides from DB to Redis on startup.
+
+    When the app restarts, Redis is empty. This reads any persisted provider
+    choice from system_settings and re-populates the Redis override keys so
+    the config set via the setup wizard or admin UI survives restarts.
+    """
+    if not await redis.get("llm:override"):
+        llm_p = await session.scalar(select(SystemSetting).where(SystemSetting.key == "llm:provider"))
+        llm_m = await session.scalar(select(SystemSetting).where(SystemSetting.key == "llm:model"))
+        if llm_p and llm_m:
+            await set_override(redis, llm_p.value, llm_m.value)
+            logger.info("restored llm override from db", extra={"provider": llm_p.value, "model": llm_m.value})
+
+    if not await redis.get("embed:override"):
+        emb_p = await session.scalar(select(SystemSetting).where(SystemSetting.key == "embed:provider"))
+        emb_m = await session.scalar(select(SystemSetting).where(SystemSetting.key == "embed:model"))
+        emb_d = await session.scalar(select(SystemSetting).where(SystemSetting.key == "embed:dimensions"))
+        if emb_p and emb_m and emb_d:
+            await set_embedding_override(redis, emb_p.value, emb_m.value, int(emb_d.value))
+            logger.info("restored embedding override from db", extra={"provider": emb_p.value})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown.
@@ -109,6 +138,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     async with get_sessionmaker()() as session:
         await maybe_bootstrap_admin(session, settings)
+        await _restore_llm_config(session, app.state.redis)
     registry = await build_registry(app.state.sessionmaker)
     init_registry(registry)
     try:

@@ -651,7 +651,7 @@ export function GenerationStep() {
         </Button>
         <Button
           onClick={() => { setError(null); saveGen.mutate(); }}
-          disabled={saveGen.isPending || !model.trim()}
+          disabled={saveGen.isPending || !model.trim() || (selected != null && !selected.configured)}
         >
           {saveGen.isPending ? "Saving…" : "Next"}
           {!saveGen.isPending && <i className="ti ti-arrow-right ml-1.5 text-sm" />}

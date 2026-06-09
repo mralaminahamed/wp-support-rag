@@ -1,17 +1,19 @@
 """Support ticket browse and reply endpoints.
 
 Tickets are WP.org support forum threads ingested as documents with
-doc_type='wporg_support'. The detail view fetches live replies from the
-WP.org REST API; posting replies uses stored WP.org credentials.
+doc_type='wporg_support'. The detail view fetches live replies by scraping
+the WP.org support thread HTML (the forum uses bbPress which does not expose
+a public REST API for topics/replies on wordpress.org).
 
 Author: Al Amin Ahamed.
 """
 
 from __future__ import annotations
 
-import base64
 import logging
+import re
 import uuid
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -38,10 +40,128 @@ router = APIRouter(prefix="/api/v1/admin/tickets", tags=["tickets"])
 _USERNAME_KEY = "wporg_username"
 _PASSWORD_KEY = "wporg_app_password"
 
+_WPORG_DATE_RE = re.compile(r"(\w+ \d+, \d{4}) at (\d+:\d+ (?:am|pm))", re.IGNORECASE)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _parse_wporg_date(raw: str) -> str:
+    """Parse 'May 17, 2026 at 6:11 am' → ISO datetime string."""
+    m = _WPORG_DATE_RE.search(raw.strip())
+    if not m:
+        return raw
+    try:
+        dt = datetime.strptime(f"{m.group(1)} {m.group(2).upper()}", "%B %d, %Y %I:%M %p")
+        return dt.isoformat()
+    except ValueError:
+        return raw
+
+
+def _parse_thread_page(
+    html: str, is_first: bool
+) -> tuple[list[TicketReply], int | None, str | None]:
+    """Parse one HTML page of a WP.org support thread.
+
+    Extracts the topic post (first page only), all reply posts, the WP.org
+    internal topic ID, and the URL of the next page (if paginated).
+
+    Returns:
+        (replies, topic_id, next_page_url)
+    """
+    replies: list[TicketReply] = []
+
+    # Numeric topic ID from the replies list element id="topic-NNN-replies"
+    topic_id: int | None = None
+    tid_m = re.search(r'id="topic-(\d+)-replies"', html)
+    if tid_m:
+        topic_id = int(tid_m.group(1))
+
+    # Next page link — bbPress renders: <a class="next page-numbers" href="...">
+    next_url: str | None = None
+    npm = re.search(r'class="next page-numbers" href="([^"]+)"', html)
+    if not npm:
+        npm = re.search(r'href="([^"]+)"[^>]*class="next page-numbers"', html)
+    if npm:
+        next_url = npm.group(1).replace("&#038;", "&")
+
+    # ── Topic post (first page only) ────────────────────────────────────────
+    if is_first:
+        am = re.search(
+            r'class="bbp-topic-author".*?'
+            r'href="(https://wordpress\.org/support/users/[^"]+)"[^>]*>.*?'
+            r'class="bbp-author-name"[^>]*>([^<]+)</span>.*?'
+            r'title="([^"]+)"[^>]*class="bbp-topic-permalink"',
+            html,
+            re.DOTALL,
+        )
+        cm = re.search(
+            r'<div class="bbp-topic-content">(.*?)</div><!-- \.bbp-topic-content -->',
+            html,
+            re.DOTALL,
+        )
+        if cm:
+            author_url = am.group(1) if am else None
+            author = am.group(2).strip() if am else "Unknown"
+            date = _parse_wporg_date(am.group(3)) if am else ""
+            post_id = topic_id or 0
+            # Use the actual topic post div id when available
+            tdm = re.search(r'id="post-(\d+)"[^>]*type-topic', html)
+            if tdm:
+                post_id = int(tdm.group(1))
+            replies.append(
+                TicketReply(
+                    id=post_id,
+                    author=author,
+                    author_url=author_url,
+                    content=cm.group(1).strip(),
+                    created_at=date,
+                    is_topic=True,
+                )
+            )
+
+    # ── Reply posts ──────────────────────────────────────────────────────────
+    for pm in re.finditer(r'<div id="post-(\d+)"[^>]*type-reply[^>]*>', html):
+        post_id = int(pm.group(1))
+        block_start = pm.end()
+        block_end = html.find(f"<!-- #post-{post_id} -->", block_start)
+        if block_end < 0:
+            continue
+        block = html[block_start:block_end]
+
+        a_m = re.search(
+            r'href="(https://wordpress\.org/support/users/[^"]+)"[^>]*>.*?'
+            r'class="bbp-author-name"[^>]*>([^<]+)</span>.*?'
+            r'title="([^"]+)"[^>]*class="bbp-reply-permalink"',
+            block,
+            re.DOTALL,
+        )
+        c_m = re.search(
+            r'<div class="bbp-reply-content">(.*?)</div><!-- \.bbp-reply-content -->',
+            block,
+            re.DOTALL,
+        )
+        if not c_m:
+            continue
+
+        author_url = a_m.group(1) if a_m else None
+        author = a_m.group(2).strip() if a_m else "Unknown"
+        date = _parse_wporg_date(a_m.group(3)) if a_m else ""
+
+        replies.append(
+            TicketReply(
+                id=post_id,
+                author=author,
+                author_url=author_url,
+                content=c_m.group(1).strip(),
+                created_at=date,
+                is_topic=False,
+            )
+        )
+
+    return replies, topic_id, next_url
 
 
 async def _get_wporg_creds(session: AsyncSession) -> tuple[str | None, str | None]:
@@ -63,80 +183,40 @@ async def _get_wporg_creds(session: AsyncSession) -> tuple[str | None, str | Non
 async def _fetch_replies_live(
     source_url: str, settings: Settings
 ) -> tuple[list[TicketReply], int | None, str | None]:
-    """Return (replies, wporg_topic_id, error). Reads from WP.org REST API."""
-    topic_slug = source_url.rstrip("/").rsplit("/", 1)[-1]
-    api_base = f"{settings.wporg_site_url.rstrip('/')}/support/wp-json/wp/v2"
+    """Scrape a WP.org support thread for all replies.
+
+    WP.org's support forum (bbPress) does not expose a public REST API for
+    topics or replies, so we scrape the rendered HTML directly. Pagination is
+    handled by following ``next page-numbers`` links up to 20 pages.
+
+    Returns:
+        (replies, wporg_topic_id, error_message_or_None)
+    """
     replies: list[TicketReply] = []
     topic_id: int | None = None
 
     try:
+        headers = {
+            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": "Mozilla/5.0 (compatible; wp-support-rag/1.0)",
+        }
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            # 1. Resolve topic by slug → get topic_id and first post
-            r = await client.get(
-                f"{api_base}/topics",
-                params={"slug": topic_slug, "_embed": "author", "per_page": 1},
-                headers={"Accept": "application/json"},
-            )
-            if r.status_code != 200:
-                return [], None, f"WP.org topics endpoint returned {r.status_code}"
-            data = r.json()
-            if not data:
-                return [], None, "topic not found on WP.org"
-            topic = data[0]
-            topic_id = int(topic["id"])
-            author_embed = ((topic.get("_embedded") or {}).get("author") or [{}])[0]
-            replies.append(
-                TicketReply(
-                    id=topic_id,
-                    author=author_embed.get("name", "Unknown"),
-                    author_url=author_embed.get("link"),
-                    content=(topic.get("content") or {}).get("rendered", ""),
-                    created_at=topic.get("date", ""),
-                    is_topic=True,
-                )
-            )
-
-            # 2. Paginate replies
-            page = 1
-            while True:
-                rr = await client.get(
-                    f"{api_base}/replies",
-                    params={
-                        "topic": topic_id,
-                        "per_page": 100,
-                        "page": page,
-                        "_embed": "author",
-                        "orderby": "date",
-                        "order": "asc",
-                    },
-                    headers={"Accept": "application/json"},
-                )
-                if rr.status_code == 400 or rr.status_code == 404:
-                    break
-                if rr.status_code != 200:
-                    break
-                batch = rr.json()
-                if not batch:
-                    break
-                for rep in batch:
-                    a = ((rep.get("_embedded") or {}).get("author") or [{}])[0]
-                    replies.append(
-                        TicketReply(
-                            id=int(rep["id"]),
-                            author=a.get("name", "Unknown"),
-                            author_url=a.get("link"),
-                            content=(rep.get("content") or {}).get("rendered", ""),
-                            created_at=rep.get("date", ""),
-                            is_topic=False,
-                        )
-                    )
-                total_pages = int(rr.headers.get("X-WP-TotalPages", 1))
-                if page >= total_pages:
-                    break
-                page += 1
-
+            next_url: str | None = source_url
+            is_first = True
+            page_count = 0
+            while next_url and page_count < 20:
+                r = await client.get(next_url, headers=headers)
+                if r.status_code != 200:
+                    err = f"WP.org returned HTTP {r.status_code}"
+                    return replies, topic_id, err
+                page_replies, tid, next_url = _parse_thread_page(r.text, is_first)
+                if tid is not None:
+                    topic_id = tid
+                replies.extend(page_replies)
+                is_first = False
+                page_count += 1
     except Exception as exc:
-        logger.warning("live fetch failed for %s: %s", source_url, exc)
+        logger.warning("reply fetch failed for %s: %s", source_url, exc)
         return replies, topic_id, str(exc)
 
     return replies, topic_id, None
@@ -228,7 +308,7 @@ async def get_ticket(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings_dep),
 ) -> TicketDetail:
-    """Fetch a ticket with live replies from WP.org."""
+    """Fetch a ticket with live replies scraped from WP.org."""
     doc = await session.get(Document, doc_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ticket not found")
@@ -261,50 +341,21 @@ async def post_reply(
     session: AsyncSession = Depends(get_session),
     settings: Settings = Depends(get_settings_dep),
 ) -> PostReplyResponse:
-    """Post a reply to a WP.org support ticket via the REST API."""
+    """Post a reply to a WP.org support ticket.
+
+    Note: wordpress.org's support forum (bbPress) does not expose a public REST
+    API for posting replies. This endpoint is a placeholder; users should reply
+    directly at wordpress.org until an alternative posting method is available.
+    """
     doc = await session.get(Document, doc_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ticket not found")
 
-    username, app_password = await _get_wporg_creds(session)
-    if not username or not app_password:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="WP.org credentials not configured — set them in the Tickets settings.",
-        )
-
-    topic_slug = doc.source_url.rstrip("/").rsplit("/", 1)[-1]
-    api_base = f"{settings.wporg_site_url.rstrip('/')}/support/wp-json/wp/v2"
-
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        r = await client.get(
-            f"{api_base}/topics",
-            params={"slug": topic_slug, "per_page": 1},
-            headers={"Accept": "application/json"},
-        )
-        if r.status_code != 200 or not r.json():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="topic not found on WP.org",
-            )
-        topic_id = r.json()[0]["id"]
-
-        creds = base64.b64encode(f"{username}:{app_password}".encode()).decode()
-        r2 = await client.post(
-            f"{api_base}/replies",
-            json={"topic": topic_id, "content": payload.content, "status": "publish"},
-            headers={
-                "Accept": "application/json",
-                "Authorization": f"Basic {creds}",
-            },
-        )
-        if r2.status_code in (200, 201):
-            return PostReplyResponse(
-                success=True,
-                message="Reply posted to WordPress.org.",
-                reply_url=r2.json().get("link"),
-            )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"WP.org returned {r2.status_code}: {r2.text[:300]}",
-        )
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=(
+            "Posting replies via API is not supported — wordpress.org's support forum "
+            "does not expose a public REST API for reply creation. "
+            f"Please reply directly at: {doc.source_url}"
+        ),
+    )

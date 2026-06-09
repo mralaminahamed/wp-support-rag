@@ -1,25 +1,13 @@
 // Support ticket detail: live replies + reply box. Author: Al Amin Ahamed.
-import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getTicket,
-  getWporgCredentials,
-  postReply,
-  saveWporgCredentials,
-} from "@/api/tickets";
+import { useQuery } from "@tanstack/react-query";
+import { getTicket } from "@/api/tickets";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/feedback";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ToastProvider";
 import { extractErrorMessage } from "@/lib/queryClient";
-import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import type { TicketReply } from "@/types/api";
 
@@ -89,111 +77,16 @@ function ReplyCard({ reply }: { reply: TicketReply }) {
   );
 }
 
-// ── Credentials modal ─────────────────────────────────────────────────────────
-
-function CredentialsModal({
-  onClose,
-  onSaved,
-  currentUsername,
-}: {
-  onClose: () => void;
-  onSaved: () => void;
-  currentUsername: string | null;
-}) {
-  const toast = useToast();
-  const qc = useQueryClient();
-  const [username, setUsername] = useState(currentUsername ?? "");
-  const [password, setPassword] = useState("");
-
-  const save = useMutation({
-    mutationFn: () => saveWporgCredentials(username.trim(), password),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["wporg-credentials"] });
-      toast.ok("WP.org credentials saved.");
-      onSaved();
-    },
-    onError: (e) => toast.err(extractErrorMessage(e)),
-  });
-
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent>
-        <h2 className="text-lg font-semibold">WordPress.org credentials</h2>
-        <p className="text-sm text-muted-foreground">
-          Used to post replies to WP.org support threads on your behalf.
-          Generate an{" "}
-          <a
-            href="https://wordpress.org/support/article/application-passwords/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            application password
-          </a>{" "}
-          at wordpress.org → Profile → Application Passwords.
-        </p>
-        <Field label="WordPress.org username">
-          <Input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="your-username"
-          />
-        </Field>
-        <Field label="Application password">
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
-          />
-        </Field>
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button
-            onClick={() => save.mutate()}
-            disabled={!username.trim() || !password || save.isPending}
-          >
-            {save.isPending ? "Saving…" : "Save credentials"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function TicketDetailPage() {
   const { docId } = useParams<{ docId: string }>();
-  const toast = useToast();
-  const qc = useQueryClient();
-  const { hasPermission } = useAuth();
-  const [replyText, setReplyText] = useState("");
-  const [showCredModal, setShowCredModal] = useState(false);
 
   const ticket = useQuery({
     queryKey: ["ticket", docId],
     queryFn: () => getTicket(docId!),
     enabled: !!docId,
   });
-
-  const creds = useQuery({
-    queryKey: ["wporg-credentials"],
-    queryFn: getWporgCredentials,
-  });
-
-  const reply = useMutation({
-    mutationFn: () => postReply(docId!, replyText),
-    onSuccess: (data) => {
-      toast.ok(data.message);
-      setReplyText("");
-      void qc.invalidateQueries({ queryKey: ["ticket", docId] });
-    },
-    onError: (e) => toast.err(extractErrorMessage(e)),
-  });
-
-  const canWrite = hasPermission("plugins:write");
-  const credConfigured = creds.data?.configured ?? false;
 
   if (ticket.isLoading) {
     return (
@@ -282,68 +175,22 @@ export function TicketDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Reply box */}
-      {canWrite && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Post a reply</CardTitle>
-            <button
-              type="button"
-              onClick={() => setShowCredModal(true)}
-              className="text-[11px] text-muted-foreground hover:text-foreground hover:underline inline-flex items-center gap-1"
-            >
-              <i className="ti ti-settings text-[11px]" />
-              {credConfigured
-                ? `Posting as ${creds.data?.username}`
-                : "Configure credentials"}
-            </button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {!credConfigured && (
-              <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                <i className="ti ti-lock mr-1.5" />
-                WP.org credentials required to post replies.{" "}
-                <button
-                  type="button"
-                  onClick={() => setShowCredModal(true)}
-                  className="text-primary hover:underline font-medium"
-                >
-                  Set up now
-                </button>
-              </div>
-            )}
-            <textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              rows={5}
-              placeholder="Write your reply…"
-              disabled={!credConfigured}
-              className={cn(
-                "w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
-                "placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-y",
-                "disabled:opacity-50 disabled:cursor-not-allowed",
-              )}
-            />
-            <div className="flex justify-end">
-              <Button
-                onClick={() => reply.mutate()}
-                disabled={!credConfigured || !replyText.trim() || reply.isPending}
-              >
-                <i className="ti ti-send mr-1.5 text-[13px]" />
-                {reply.isPending ? "Posting…" : "Post reply"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {showCredModal && (
-        <CredentialsModal
-          currentUsername={creds.data?.username ?? null}
-          onClose={() => setShowCredModal(false)}
-          onSaved={() => setShowCredModal(false)}
-        />
-      )}
+      {/* Reply on WP.org */}
+      <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground flex items-center justify-between gap-3">
+        <span>
+          <i className="ti ti-info-circle mr-1.5" />
+          Replies must be posted directly on WordPress.org (the support forum does not expose a public API for creating replies).
+        </span>
+        <a
+          href={t.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          <i className="ti ti-external-link text-[11px]" />
+          Reply on WP.org
+        </a>
+      </div>
     </div>
   );
 }

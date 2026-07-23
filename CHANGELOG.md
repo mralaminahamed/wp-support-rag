@@ -7,9 +7,11 @@ All notable changes to WP Plugin Support Desk RAG are documented here.
 ## [Unreleased]
 
 ### Added
+- LangChain migration — foundation (PR1, flag-gated behind `WPRAG_USE_LANGCHAIN`, default off): LangChain 1.x + LangGraph + `langchain-postgres` deps; `WpragEmbeddings` (LangChain `Embeddings` adapter over the existing embedder); `rag/vectorstore.py` (dynamic `PGVectorStore` schema creation with native hybrid RRF + HNSW); `rag/models.py` (`build_chat_model` via `init_chat_model` + `classify_provider_error`); config guard rejecting `halfvec_3072` when the flag is on (dynamic `vector` column caps at 2000 dims → use `vector_1536`/Ollama). Legacy path unchanged. Plan spec under `docs/superpowers/specs`.
 - Setup wizard: first-run gate at `/setup` with 3 steps (generation provider, embeddings, first plugin); `system_settings` DB table; `GET /api/v1/admin/setup/status` + `POST /api/v1/admin/setup/complete`; setup complete banner on dashboard
 
 ### Planned
+- LangChain migration — PR2/PR3: ingestion via `PGVectorStore.aadd_documents`, `hybrid_retrieve` rewrite, LangGraph generation graph + SSE streaming, full re-ingest at 1536 (needs live stack; see spec)
 - Setup wizard implementation (spec at `docs/superpowers/specs/2026-06-01-setup-wizard-design.md`)
 
 ---

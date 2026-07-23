@@ -30,6 +30,12 @@ dependencies = [
     "aiosmtplib>=3.0",
     "python-multipart>=0.0.12",
     "wp-support-rag-sdk",
+    "langchain>=1.3.14",
+    "langgraph>=1.2.9",
+    "langchain-postgres>=0.0.17",
+    "langchain-anthropic>=1.5.0",
+    "langchain-openai>=1.4.0",
+    "langchain-ollama>=1.1.0",
 ]
 
 [dependency-groups]

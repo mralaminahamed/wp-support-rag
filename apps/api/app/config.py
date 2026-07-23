@@ -229,6 +229,12 @@ class Settings(BaseSettings):
     # --- Custom Adapters ---
     custom_adapters_dir: str = "/app/custom_adapters"
 
+    # --- LangChain migration (feature flag) ---
+    # Gates the LangChain read/generate path (langchain-postgres PGVectorStore +
+    # LangGraph). Off by default: the legacy hand-rolled pgvector/RRF path stays
+    # active until parity is proven (see docs/superpowers/specs LangChain migration).
+    use_langchain: bool = False
+
     @property
     def embedding_dimensions(self) -> int:
         """Embedding width for the active embedding provider.
@@ -307,6 +313,15 @@ class Settings(BaseSettings):
             raise ValueError("retrieval_top_k must be <= retrieval_top_n")
         if self.vector_weight == 0.0 and self.lexical_weight == 0.0:
             raise ValueError("at least one of vector_weight or lexical_weight must be > 0")
+        if self.use_langchain and self.embedding_dimensions > 2000:
+            # langchain-postgres dynamic table creation stores embeddings in a
+            # pgvector `vector` column, whose HNSW/IVFFlat index caps at 2000 dims.
+            # halfvec_3072 (3072) cannot be indexed there — force a <=2000 width.
+            raise ValueError(
+                "use_langchain requires an embedding width <= 2000 "
+                f"(got {self.embedding_dimensions}); set "
+                "WPRAG_DIMENSIONALITY_MODE=vector_1536 or use the Ollama provider (768)"
+            )
         return self
 
 
